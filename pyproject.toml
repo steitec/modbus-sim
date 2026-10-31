@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modbus-sim"
+version = "0.1.0"
+description = "Simulated Modbus devices with behaviour and fault injection: energy meter, temperature controller, VFD over Modbus TCP and RTU"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "Ralf Steinert"}]
+requires-python = ">=3.10"
+dependencies = ["pyyaml>=6"]
+keywords = ["modbus", "modbus-tcp", "modbus-rtu", "simulator", "slave", "scada",
+            "industrial automation", "test automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Manufacturing",
+    "Framework :: Pytest",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Testing",
+    "Topic :: System :: Hardware",
+]
+
+[project.urls]
+Homepage = "https://github.com/steitec/modbus-sim"
+Repository = "https://github.com/steitec/modbus-sim"
+Changelog = "https://github.com/steitec/modbus-sim/blob/main/CHANGELOG.md"
+Issues = "https://github.com/steitec/modbus-sim/issues"
+
+[project.optional-dependencies]
+serial = ["pyserial>=3.5"]
+dev = ["pytest>=8", "build>=1.2", "pymodbus>=3.10"]
+
+[project.scripts]
+modbus-sim = "modbus_sim.cli:main"
+
+[project.entry-points.pytest11]
+modbus_sim = "modbus_sim.pytest_plugin"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["error"]
+
+[tool.setuptools.package-data]
+modbus_sim = ["profiles/*.yaml"]

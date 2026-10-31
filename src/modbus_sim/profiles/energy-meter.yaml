@@ -1,0 +1,57 @@
+# Three-phase energy meter. Invented register map in the style of common DIN-rail
+# meters: float32 values in input registers, word order CDAB (low word first),
+# which is exactly the detail that trips up many integrations.
+name: energy-meter
+description: three-phase energy meter, float32 CDAB values in input registers
+identification:
+  vendor: steitec
+  product: SIM-EM3
+  revision: "1.0"
+  vendor_url: https://github.com/steitec/modbus-sim
+  product_name: modbus-sim energy meter
+  model_name: SIM-EM3
+word_order: CDAB
+model: energy_meter
+model_params:
+  voltage: 230.0
+  frequency: 50.0
+  current: [10.0, 12.0, 8.0]
+  power_factor: 0.95
+points:
+  - {name: voltage_l1, table: input, address: 0, type: float32, unit: V, model: voltage_l1}
+  - {name: voltage_l2, table: input, address: 2, type: float32, unit: V, model: voltage_l2}
+  - {name: voltage_l3, table: input, address: 4, type: float32, unit: V, model: voltage_l3}
+  - {name: current_l1, table: input, address: 6, type: float32, unit: A, model: current_l1}
+  - {name: current_l2, table: input, address: 8, type: float32, unit: A, model: current_l2}
+  - {name: current_l3, table: input, address: 10, type: float32, unit: A, model: current_l3}
+  - {name: power_l1, table: input, address: 12, type: float32, unit: W, model: power_l1}
+  - {name: power_l2, table: input, address: 14, type: float32, unit: W, model: power_l2}
+  - {name: power_l3, table: input, address: 16, type: float32, unit: W, model: power_l3}
+  - {name: power_factor_l1, table: input, address: 18, type: float32, model: power_factor_l1}
+  - {name: power_factor_l2, table: input, address: 20, type: float32, model: power_factor_l2}
+  - {name: power_factor_l3, table: input, address: 22, type: float32, model: power_factor_l3}
+  - {name: voltage_l12, table: input, address: 24, type: float32, unit: V, model: voltage_l12}
+  - {name: voltage_l23, table: input, address: 26, type: float32, unit: V, model: voltage_l23}
+  - {name: voltage_l31, table: input, address: 28, type: float32, unit: V, model: voltage_l31}
+  - {name: frequency, table: input, address: 30, type: float32, unit: Hz, model: frequency}
+  - {name: power_total, table: input, address: 32, type: float32, unit: W, model: power_total}
+  - {name: reactive_power_total, table: input, address: 34, type: float32, unit: var,
+     model: reactive_power_total}
+  - {name: apparent_power_total, table: input, address: 36, type: float32, unit: VA,
+     model: apparent_power_total}
+  - {name: power_factor_total, table: input, address: 38, type: float32,
+     model: power_factor_total}
+  - {name: energy_import, table: input, address: 40, type: float32, unit: kWh,
+     model: energy_import}
+  - {name: energy_export, table: input, address: 42, type: float32, unit: kWh,
+     model: energy_export}
+  - {name: energy_import_wh, table: input, address: 100, type: uint64, unit: kWh, scale: 0.001,
+     model: energy_import, description: "Wh counter, no float rounding"}
+  - {name: energy_export_wh, table: input, address: 104, type: uint64, unit: kWh, scale: 0.001,
+     model: energy_export, description: "Wh counter, no float rounding"}
+  - {name: label, table: holding, address: 20, type: string, length: 8, value: "METER 1",
+     description: "free text, kept until restart"}
+  - {name: ct_ratio, table: holding, address: 28, type: uint16, value: 1, min: 1, max: 5000,
+     description: "current transformer ratio (stored only, not applied)"}
+  - {name: reset_energy, table: coil, address: 0, model: reset_energy,
+     description: "write 1 to reset both energy counters"}

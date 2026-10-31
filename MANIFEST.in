@@ -1,0 +1,5 @@
+# What goes into the source distribution besides the package itself
+include CHANGELOG.md LICENSE README.md
+graft tests
+graft examples
+global-exclude __pycache__ *.py[cod]

@@ -1,0 +1,67 @@
+name: Release
+
+# Publishes to PyPI when a version tag (v1.2.3) is pushed: runs the tests,
+# checks that the tag matches the package version, builds, then publishes.
+# Needs a Trusted Publisher on PyPI for this repository and workflow
+# (environment "pypi"); no API token is stored in the repository.
+
+on:
+  push:
+    tags: ["v*"]
+
+# Jobs that need more (publishing) ask for it themselves.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev,serial]"
+      - run: pytest -v
+      - run: pytest -v examples/test_example.py
+
+  build:
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Tag must match the package version
+        run: |
+          version=$(python -c "import ast, pathlib; \
+            tree = ast.parse(pathlib.Path('src/modbus_sim/__init__.py').read_text()); \
+            print(next(n.value.value for n in tree.body if isinstance(n, ast.Assign) and n.targets[0].id == '__version__'))")
+          project=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          echo "tag ${GITHUB_REF_NAME}, __version__ ${version}, pyproject ${project}"
+          test "${GITHUB_REF_NAME}" = "v${version}"
+          test "${version}" = "${project}"
+      - run: pip install "build>=1.2" "twine>=6"
+      - run: python -m build
+      - run: twine check dist/*
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

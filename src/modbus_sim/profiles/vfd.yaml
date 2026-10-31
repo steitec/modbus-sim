@@ -1,0 +1,45 @@
+# Variable frequency drive. Control and status words in holding registers, as most
+# drives do it. Start: write speed_reference, then control_word = 1 (run).
+# After a trip: control_word bit 2 (0 -> 1) resets, then run must go 0 -> 1 again.
+name: vfd
+description: frequency converter with control word, ramps and fault trip
+identification:
+  vendor: steitec
+  product: SIM-FC1
+  revision: "1.0"
+  vendor_url: https://github.com/steitec/modbus-sim
+  product_name: modbus-sim frequency converter
+  model_name: SIM-FC1
+model: vfd
+model_params:
+  max_frequency: 50.0
+  accel_time: 10.0
+  decel_time: 10.0
+  rated_current: 10.0
+  rated_voltage: 400.0
+  pole_pairs: 2
+points:
+  - {name: control_word, table: holding, address: 0, model: control_word,
+     bits: {0: run, 1: reverse, 2: fault reset (rising edge)}}
+  - {name: speed_reference, table: holding, address: 1, scale: 0.01, unit: Hz, min: 0, max: 50,
+     model: speed_reference}
+  - {name: status_word, table: holding, address: 100, access: ro, model: status_word,
+     bits: {0: ready, 1: running, 2: at reference, 3: fault, 4: reverse}}
+  - {name: output_frequency, table: holding, address: 101, access: ro, scale: 0.01, unit: Hz,
+     model: output_frequency}
+  - {name: output_current, table: holding, address: 102, access: ro, scale: 0.1, unit: A,
+     model: output_current}
+  - {name: output_voltage, table: holding, address: 103, access: ro, unit: V,
+     model: output_voltage}
+  - {name: motor_speed, table: holding, address: 104, access: ro, type: int16, unit: rpm,
+     model: motor_speed, description: "negative = reverse"}
+  - {name: fault_code, table: holding, address: 105, access: ro, model: fault_code,
+     description: "0 = no fault"}
+  - {name: run_hours, table: holding, address: 106, access: ro, type: float32, unit: h,
+     model: run_hours}
+  - {name: ready, table: discrete, address: 0, model: ready}
+  - {name: running, table: discrete, address: 1, model: running}
+  - {name: at_reference, table: discrete, address: 2, model: at_reference}
+  - {name: fault, table: discrete, address: 3, model: fault}
+  - {name: exception_status, table: input, address: 0, model: status_word,
+     description: "status word again; its low byte is returned by function 07"}

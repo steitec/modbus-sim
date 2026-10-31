@@ -1,0 +1,39 @@
+# Single-loop temperature controller (oven, hot plate). Values are int16 in tenths:
+# 215 means 21.5 degC. A broken sensor reads 3276.7 (0x7FFF), like many controllers.
+name: temperature-controller
+description: PI temperature controller, int16 values scaled by 0.1
+identification:
+  vendor: steitec
+  product: SIM-TC1
+  revision: "1.0"
+  vendor_url: https://github.com/steitec/modbus-sim
+  product_name: modbus-sim temperature controller
+  model_name: SIM-TC1
+model: temperature_controller
+model_params:
+  ambient: 22.0
+  max_temperature: 300.0
+  time_constant: 120.0
+  setpoint: 60.0
+points:
+  - {name: pv, table: input, address: 0, type: int16, scale: 0.1, unit: degC, model: pv,
+     description: "process value; 3276.7 = sensor break"}
+  - {name: output, table: input, address: 1, type: uint16, scale: 0.1, unit: "%", model: output}
+  - {name: status, table: input, address: 2, model: status,
+     bits: {0: running, 1: manual, 2: alarm high, 3: alarm low, 4: sensor break}}
+  - {name: setpoint, table: holding, address: 0, type: int16, scale: 0.1, unit: degC,
+     min: -50, max: 280, model: setpoint}
+  - {name: mode, table: holding, address: 1, min: 0, max: 1, model: mode,
+     description: "0 = auto, 1 = manual"}
+  - {name: manual_output, table: holding, address: 2, scale: 0.1, unit: "%", min: 0, max: 100,
+     model: manual_output}
+  - {name: alarm_high_limit, table: holding, address: 3, type: int16, scale: 0.1, unit: degC,
+     model: alarm_high_limit}
+  - {name: alarm_low_limit, table: holding, address: 4, type: int16, scale: 0.1, unit: degC,
+     model: alarm_low_limit}
+  - {name: run, table: coil, address: 0, model: run, description: "1 = control on"}
+  - {name: alarm_high, table: discrete, address: 0, model: alarm_high}
+  - {name: alarm_low, table: discrete, address: 1, model: alarm_low}
+  - {name: sensor_break, table: discrete, address: 2, model: sensor_break}
+  - {name: exception_status, table: input, address: 10, model: status,
+     description: "low byte is returned by function 07"}

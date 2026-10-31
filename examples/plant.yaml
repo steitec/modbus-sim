@@ -1,0 +1,7 @@
+# A small plant behind one Modbus TCP gateway: run with
+#   modbus-sim serve --bench examples/plant.yaml
+devices:
+  - {profile: energy-meter, unit: 1, name: meter}
+  - {profile: temperature-controller, unit: 2, name: oven,
+     model_params: {setpoint: 180.0, time_constant: 60.0}}
+  - {profile: vfd, unit: 3, name: pump, model_params: {accel_time: 5, decel_time: 5}}
