@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## 0.1.0 - unreleased
+## 0.1.0 - 2026-10-31
 
 - Modbus TCP, RTU over TCP, and RTU on a serial port (pyserial) or a virtual
   serial port (pty, Linux/macOS); several devices by unit ID behind one server,
