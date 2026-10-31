@@ -7,8 +7,8 @@
 
 [![CI](https://github.com/steitec/modbus-sim/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/steitec/modbus-sim/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/modbus-sim)](https://pypi.org/project/modbus-sim/)
-[![Python](https://img.shields.io/pypi/pyversions/modbus-sim)](https://pypi.org/project/modbus-sim/)
-[![License](https://img.shields.io/pypi/l/modbus-sim)](https://github.com/steitec/modbus-sim/blob/main/LICENSE)
+[![Python](https://img.shields.io/pypi/pyversions/modbus-sim?v=0.1.0)](https://pypi.org/project/modbus-sim/)
+[![License](https://img.shields.io/pypi/l/modbus-sim?v=0.1.0)](https://github.com/steitec/modbus-sim/blob/main/LICENSE)
 
 Simulated Modbus devices that **behave**: an energy meter whose counters count,
 a temperature controller that heats towards its setpoint, a frequency converter
