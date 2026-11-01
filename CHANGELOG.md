@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## 0.2.0 - unreleased
+## 0.2.0 - 2026-11-01
 
 - Profiles after the published register maps of real devices:
   `eastron-sdm630` (Eastron SDM630 protocol V1.5, float32 ABCD, input and set-up
