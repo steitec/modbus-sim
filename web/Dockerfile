@@ -3,7 +3,7 @@
 #
 #   docker build -f web/Dockerfile -t modbus-sim-web .
 #   docker run --rm -p 8080:80 modbus-sim-web
-FROM python:3.13-slim AS build
+FROM python:3.15-slim AS build
 RUN pip install --no-cache-dir "build>=1.2"
 WORKDIR /src
 COPY pyproject.toml README.md LICENSE CHANGELOG.md MANIFEST.in ./
