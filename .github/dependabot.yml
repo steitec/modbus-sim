@@ -17,3 +17,24 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      npm:
+        patterns: ["*"]
+  - package-ecosystem: "docker"
+    directory: "/web"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      docker-web:
+        patterns: ["*"]
+    ignore:
+      # Stay on nginx stable (even minor, e.g. 1.30); odd minors are mainline.
+      # Patches still come in; move to the next stable branch by hand.
+      - dependency-name: "nginx"
+        update-types: ["version-update:semver-minor"]

@@ -15,6 +15,7 @@ a temperature controller that heats towards its setpoint, a frequency converter
 that ramps up when you set the run bit and trips when you tell it to. Three
 profiles follow the published register maps of real devices: an Eastron SDM630
 energy meter, an Omron E5CC temperature controller and a SunSpec PV inverter.
+**[Try them in your browser](https://modbus-sim.steitec.net)**, no install needed.
 They speak
 Modbus TCP, RTU over TCP and RTU on a serial line or a virtual serial port, so
 you can develop and test SCADA links, data loggers, gateways, Node-RED flows or

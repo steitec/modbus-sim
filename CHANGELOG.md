@@ -20,6 +20,9 @@ All notable changes to this project are documented here. The format follows
   write enable (`comms_write`) and the Omron E5@C status words
 - A model can refuse a write with exception 04 instead of 03 (the E5CC answers
   04, operation error, while communications writing is off)
+- Browser demo at https://modbus-sim.steitec.net (`web/`): the three real-device
+  profiles in Pyodide with a Modbus terminal that shows the TCP frames, live device
+  fronts and fault buttons; example bench `examples/real-devices.yaml`
 - Fixed: the word order table named Eastron among CDAB devices; Eastron meters
   send the most significant register first (ABCD)
 
