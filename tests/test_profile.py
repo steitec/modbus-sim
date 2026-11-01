@@ -9,7 +9,8 @@ def base(*points, **extra):
 
 
 def test_bundled_profiles_load_and_build():
-    assert bundled_profiles() == ["energy-meter", "temperature-controller", "vfd"]
+    assert bundled_profiles() == ["eastron-sdm630", "energy-meter", "omron-e5cc",
+                                  "sunspec-inverter", "temperature-controller", "vfd"]
     for name in bundled_profiles():
         Device(load_profile(name))
 

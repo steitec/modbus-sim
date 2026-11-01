@@ -1,0 +1,62 @@
+# Omron E5CC digital temperature controller, Modbus RTU in two-byte mode, after the
+# "E5@C Digital Temperature Controllers Communications Manual" (H175), section 4
+# (operation commands) and section 5 (variable area). Two-byte mode: every value is
+# one signed 16-bit register, read with function 03; addresses below are the
+# manual's two-byte addresses (PV = H'2000). Values carry the decimal point of the
+# input type: here Pt100 with one decimal (-199.9 to 500.0 degC), so 215 = 21.5 degC.
+#
+# The E5CC behaviour that catches integrations: settings and operation commands are
+# refused until "communications writing" is switched on with the operation command
+# H'0001 (written with function 06 to address H'0000). This profile starts with
+# communications writing off.
+#
+# Not a copy of the controller: steitec is not affiliated with Omron. Simplified here:
+# - only two-byte mode; the four-byte mode addresses (H'0000 ff., int32) are not
+#   simulated, so address H'0000 is only the operation command register
+# - the status words (H'2001, H'2406/H'2407) are not simulated: their bit layout could
+#   not be verified from public sources. Unmapped addresses read 0 (gaps: zero), so a
+#   block read of H'2000-H'2004 works, but status and heater current read 0
+# - operation commands other than communications writing, RUN/STOP and auto/manual are
+#   accepted without effect; the plant is the generic PI-controlled oven model
+name: omron-e5cc
+description: Omron E5CC temperature controller (H175), two-byte mode, write enable
+identification:
+  vendor: steitec
+  product: SIM-E5CC
+  revision: "1.0"
+  vendor_url: https://github.com/steitec/modbus-sim
+  product_name: modbus-sim profile of the Omron E5CC register map
+  model_name: E5CC (simulated)
+gaps: zero
+model: temperature_controller
+model_params:
+  ambient: 22.0
+  max_temperature: 450.0
+  time_constant: 120.0
+  setpoint: 0.0
+  run: true
+  comms_write: false
+points:
+  - {name: operation_command, table: holding, address: 0x0000, model: command,
+     description: "write only (function 06): high byte command, low byte info;
+       0x0001 comms writing on, 0x0100 run, 0x0101 stop, 0x0900 auto, 0x0901 manual"}
+  - {name: pv, table: holding, address: 0x2000, type: int16, scale: 0.1, unit: degC,
+     access: ro, model: pv, description: "process value; 3276.7 = input error"}
+  - {name: internal_sp, table: holding, address: 0x2002, type: int16, scale: 0.1,
+     unit: degC, access: ro, model: setpoint, description: "internal set point"}
+  - {name: mv_heating, table: holding, address: 0x2004, type: int16, scale: 0.1,
+     unit: "%", access: ro, model: output, description: "MV monitor (heating)"}
+  - {name: set_point, table: holding, address: 0x2103, type: int16, scale: 0.1,
+     unit: degC, min: -199.9, max: 500.0, model: setpoint,
+     description: "needs communications writing on"}
+  - {name: pv_monitor, table: holding, address: 0x2402, type: int16, scale: 0.1,
+     unit: degC, access: ro, model: pv, description: "PV (protect level copy)"}
+  - {name: internal_sp_monitor, table: holding, address: 0x2403, type: int16, scale: 0.1,
+     unit: degC, access: ro, model: setpoint}
+  - {name: multi_sp_no, table: holding, address: 0x2404, access: ro, value: 0,
+     description: "multi-SP number monitor (0-7)"}
+  - {name: decimal_point, table: holding, address: 0x2410, access: ro, value: 1,
+     description: "decimal point monitor: 1 = one decimal"}
+  - {name: manual_mv, table: holding, address: 0x2600, type: int16, scale: 0.1,
+     unit: "%", min: 0, max: 100, model: manual_output,
+     description: "manual MV, used in manual mode (the controller allows -5.0 to 105.0)"}
