@@ -6,8 +6,8 @@ bytes are A B C D:
 =====  ===============  ================================================
 order  registers        seen in
 =====  ===============  ================================================
-ABCD   [AB, CD]         the Modbus default (big endian), most PLCs
-CDAB   [CD, AB]         word-swapped: many energy meters, Schneider, Eastron
+ABCD   [AB, CD]         the Modbus default (big endian), most PLCs, Eastron
+CDAB   [CD, AB]         word-swapped: many energy meters, Schneider
 BADC   [BA, DC]         byte-swapped
 DCBA   [DC, BA]         little endian
 =====  ===============  ================================================

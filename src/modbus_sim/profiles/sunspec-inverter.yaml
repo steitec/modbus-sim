@@ -1,0 +1,136 @@
+# SunSpec three-phase PV inverter: the register layout that SMA, Fronius, SolarEdge,
+# ABB/FIMER, Kostal and others publish for monitoring. Built from the SunSpec model
+# definitions (github.com/sunspec/models, JSON): model 1 (common) and model 103
+# (three-phase inverter, integer + scale factor). Holding registers, function 03.
+#
+#   40000  "SunS" marker               (register 40001 in 1-based documentation)
+#   40002  model 1, length 66          manufacturer, model, version, serial, address
+#   40070  model 103, length 50        AC/DC values, energy, temperatures, state, events
+#   40122  end model 0xFFFF, length 0
+#
+# Scale factors are fixed (as on many real inverters) and served in their registers,
+# so clients that apply *_SF registers and clients that hard-code them both work.
+# Optional points that are not simulated return the SunSpec "not implemented" values
+# (int16 0x8000, uint16/enum16 0xFFFF, bitfield32 0xFFFFFFFF).
+#
+# The device is generic (manufacturer "steitec"), not any vendor's inverter. Time of
+# day starts at noon; model_params: {time_scale: 3600} runs a day in 24 s.
+name: sunspec-inverter
+description: SunSpec PV inverter (models 1 + 103) on a day curve, holding 40000 ff.
+identification:
+  vendor: steitec
+  product: SIM-PV10
+  revision: "1.0.0"
+  vendor_url: https://github.com/steitec/modbus-sim
+  product_name: modbus-sim SunSpec inverter
+  model_name: SIM-PV10
+word_order: ABCD
+gaps: error
+model: pv_inverter
+model_params:
+  rated_power: 10000
+  voltage: 230.0
+  frequency: 50.0
+  dc_voltage: 600.0
+  start_hour: 12.0
+points:
+  - {name: sunspec_id, table: holding, address: 40000, type: string, length: 2,
+     value: SunS, access: ro, description: "SunSpec marker 0x53756E53"}
+  # --- model 1: common ---
+  - {name: common_id, table: holding, address: 40002, value: 1, access: ro}
+  - {name: common_length, table: holding, address: 40003, value: 66, access: ro}
+  - {name: manufacturer, table: holding, address: 40004, type: string, length: 16,
+     value: steitec, access: ro}
+  - {name: model_name, table: holding, address: 40020, type: string, length: 16,
+     value: SIM-PV10, access: ro}
+  - {name: options, table: holding, address: 40036, type: string, length: 8, value: "",
+     access: ro}
+  - {name: version, table: holding, address: 40044, type: string, length: 8,
+     value: "1.0.0", access: ro}
+  - {name: serial_number, table: holding, address: 40052, type: string, length: 16,
+     value: SIM0000001, access: ro}
+  - {name: device_address, table: holding, address: 40068, value: 1, min: 1, max: 247,
+     description: "stored only; the simulator keeps its unit ID"}
+  - {name: common_pad, table: holding, address: 40069, value: 0x8000, access: ro}
+  # --- model 103: three-phase inverter ---
+  - {name: inverter_id, table: holding, address: 40070, value: 103, access: ro}
+  - {name: inverter_length, table: holding, address: 40071, value: 50, access: ro}
+  - {name: ac_current, table: holding, address: 40072, scale: 0.01, unit: A, access: ro,
+     model: current, description: "A"}
+  - {name: ac_current_a, table: holding, address: 40073, scale: 0.01, unit: A, access: ro,
+     model: current_l1, description: "AphA"}
+  - {name: ac_current_b, table: holding, address: 40074, scale: 0.01, unit: A, access: ro,
+     model: current_l2, description: "AphB"}
+  - {name: ac_current_c, table: holding, address: 40075, scale: 0.01, unit: A, access: ro,
+     model: current_l3, description: "AphC"}
+  - {name: a_sf, table: holding, address: 40076, type: int16, value: -2, access: ro}
+  - {name: voltage_ab, table: holding, address: 40077, scale: 0.1, unit: V, access: ro,
+     model: voltage_l12, description: "PPVphAB"}
+  - {name: voltage_bc, table: holding, address: 40078, scale: 0.1, unit: V, access: ro,
+     model: voltage_l23, description: "PPVphBC"}
+  - {name: voltage_ca, table: holding, address: 40079, scale: 0.1, unit: V, access: ro,
+     model: voltage_l31, description: "PPVphCA"}
+  - {name: voltage_an, table: holding, address: 40080, scale: 0.1, unit: V, access: ro,
+     model: voltage_l1, description: "PhVphA"}
+  - {name: voltage_bn, table: holding, address: 40081, scale: 0.1, unit: V, access: ro,
+     model: voltage_l2, description: "PhVphB"}
+  - {name: voltage_cn, table: holding, address: 40082, scale: 0.1, unit: V, access: ro,
+     model: voltage_l3, description: "PhVphC"}
+  - {name: v_sf, table: holding, address: 40083, type: int16, value: -1, access: ro}
+  - {name: ac_power, table: holding, address: 40084, type: int16, unit: W, access: ro,
+     model: power, description: "W"}
+  - {name: w_sf, table: holding, address: 40085, type: int16, value: 0, access: ro}
+  - {name: frequency, table: holding, address: 40086, scale: 0.01, unit: Hz, access: ro,
+     model: frequency, description: "Hz"}
+  - {name: hz_sf, table: holding, address: 40087, type: int16, value: -2, access: ro}
+  - {name: apparent_power, table: holding, address: 40088, type: int16, unit: VA,
+     access: ro, model: apparent_power, description: "VA"}
+  - {name: va_sf, table: holding, address: 40089, type: int16, value: 0, access: ro}
+  - {name: reactive_power, table: holding, address: 40090, type: int16, unit: var,
+     access: ro, model: reactive_power, description: "VAr"}
+  - {name: var_sf, table: holding, address: 40091, type: int16, value: 0, access: ro}
+  - {name: power_factor, table: holding, address: 40092, type: int16, scale: 0.01,
+     unit: "%", access: ro, model: power_factor, description: "PF in percent"}
+  - {name: pf_sf, table: holding, address: 40093, type: int16, value: -2, access: ro}
+  - {name: energy, table: holding, address: 40094, type: uint32, unit: Wh, access: ro,
+     model: energy, description: "WH, acc32 lifetime energy"}
+  - {name: wh_sf, table: holding, address: 40096, type: int16, value: 0, access: ro}
+  - {name: dc_current, table: holding, address: 40097, scale: 0.01, unit: A, access: ro,
+     model: dc_current, description: "DCA"}
+  - {name: dca_sf, table: holding, address: 40098, type: int16, value: -2, access: ro}
+  - {name: dc_voltage, table: holding, address: 40099, scale: 0.1, unit: V, access: ro,
+     model: dc_voltage, description: "DCV"}
+  - {name: dcv_sf, table: holding, address: 40100, type: int16, value: -1, access: ro}
+  - {name: dc_power, table: holding, address: 40101, type: int16, unit: W, access: ro,
+     model: dc_power, description: "DCW"}
+  - {name: dcw_sf, table: holding, address: 40102, type: int16, value: 0, access: ro}
+  - {name: cabinet_temperature, table: holding, address: 40103, type: int16, scale: 0.1,
+     unit: degC, access: ro, model: cabinet_temperature, description: "TmpCab"}
+  - {name: heatsink_temperature, table: holding, address: 40104, type: int16, scale: 0.1,
+     unit: degC, access: ro, model: heatsink_temperature, description: "TmpSnk"}
+  - {name: transformer_temperature, table: holding, address: 40105, type: int16,
+     value: -32768, access: ro, description: "TmpTrns, not implemented (0x8000)"}
+  - {name: other_temperature, table: holding, address: 40106, type: int16, value: -32768,
+     access: ro, description: "TmpOt, not implemented (0x8000)"}
+  - {name: tmp_sf, table: holding, address: 40107, type: int16, value: -1, access: ro}
+  - {name: operating_state, table: holding, address: 40108, access: ro, model: state,
+     description: "St: 1 off, 2 sleeping, 3 starting, 4 MPPT, 5 throttled,
+       6 shutting down, 7 fault, 8 standby"}
+  - {name: vendor_state, table: holding, address: 40109, value: 0xFFFF, access: ro,
+     description: "StVnd, not implemented"}
+  - {name: events1, table: holding, address: 40110, type: uint32, access: ro,
+     model: events, description: "Evt1 bits: 0 ground fault, 4 grid disconnect,
+       7 over temperature (others per SunSpec, never set here)"}
+  - {name: events2, table: holding, address: 40112, type: uint32, value: 0, access: ro,
+     description: "Evt2 (reserved)"}
+  - {name: vendor_events1, table: holding, address: 40114, type: uint32,
+     value: 0xFFFFFFFF, access: ro, description: "EvtVnd1, not implemented"}
+  - {name: vendor_events2, table: holding, address: 40116, type: uint32,
+     value: 0xFFFFFFFF, access: ro, description: "EvtVnd2, not implemented"}
+  - {name: vendor_events3, table: holding, address: 40118, type: uint32,
+     value: 0xFFFFFFFF, access: ro, description: "EvtVnd3, not implemented"}
+  - {name: vendor_events4, table: holding, address: 40120, type: uint32,
+     value: 0xFFFFFFFF, access: ro, description: "EvtVnd4, not implemented"}
+  # --- end model ---
+  - {name: end_id, table: holding, address: 40122, value: 0xFFFF, access: ro}
+  - {name: end_length, table: holding, address: 40123, value: 0, access: ro}

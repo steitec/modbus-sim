@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>modbus-sim – simulated Modbus devices in your browser</title>
+  <meta name="description" content="Try modbus-sim live: an energy meter, a temperature controller and a PV inverter with the register maps of real devices. Develop and test Modbus integrations without the hardware.">
+  <meta property="og:title" content="modbus-sim – simulated Modbus devices in your browser">
+  <meta property="og:description" content="Read a meter, set a controller, scan a SunSpec inverter, break them. Real modbus-sim code, running in your browser.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://modbus-sim.steitec.net/">
+  <meta property="og:image" content="https://modbus-sim.steitec.net/img/bench.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="img/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body class="loading">
+  <header class="hero">
+    <p class="eyebrow">modbus-sim · open source</p>
+    <h1>Test your Modbus integration without the devices.</h1>
+    <p class="lead">modbus-sim simulates Modbus devices that behave. Below are three of them, built
+      from the published register maps of real products: an energy meter, a temperature
+      controller and a PV inverter. Read them, write to them, break them. The real simulator
+      runs right here in your browser.</p>
+  </header>
+
+  <main>
+    <section class="bench" aria-label="Simulated Modbus devices">
+      <div class="instruments">
+        <article class="front" id="meter" aria-label="Energy meter">
+          <header class="front-head">
+            <span class="model">SDM630 <small>(simulated)</small></span>
+            <span class="kind">energy meter · unit 1 · float32</span>
+            <span class="indicators">
+              <span class="badge fault" data-testid="fault-badge-meter" hidden></span>
+            </span>
+          </header>
+          <div class="phases">
+            <div class="phase" id="meter-l1"><span class="tag">L1</span><span data-testid="meter-l1-v">– V</span><span data-testid="meter-l1-a">– A</span><span data-testid="meter-l1-w">– W</span></div>
+            <div class="phase" id="meter-l2"><span class="tag">L2</span><span data-testid="meter-l2-v">– V</span><span data-testid="meter-l2-a">– A</span><span data-testid="meter-l2-w">– W</span></div>
+            <div class="phase" id="meter-l3"><span class="tag">L3</span><span data-testid="meter-l3-v">– V</span><span data-testid="meter-l3-a">– A</span><span data-testid="meter-l3-w">– W</span></div>
+          </div>
+          <div class="totals">
+            <span><small>total</small><b data-testid="meter-power">–</b></span>
+            <span><small>import</small><b data-testid="meter-energy">–</b></span>
+            <span><small>frequency</small><b data-testid="meter-frequency">–</b></span>
+            <span><small>power factor</small><b data-testid="meter-pf">–</b></span>
+          </div>
+          <p class="powering">powering up…</p>
+        </article>
+
+        <article class="front" id="controller" aria-label="Temperature controller">
+          <header class="front-head">
+            <span class="model">E5CC <small>(simulated)</small></span>
+            <span class="kind">temperature controller · unit 2 · int16 × 0.1</span>
+            <span class="indicators">
+              <span class="badge fault" data-testid="fault-badge-controller" hidden></span>
+              <span class="badge" data-testid="controller-comms">COMM W</span>
+              <span class="badge" data-testid="controller-manual">MANU</span>
+              <span class="badge" data-testid="controller-run">RUN</span>
+            </span>
+          </header>
+          <div class="ctrl">
+            <div class="lcd pv" data-testid="controller-pv">– – –</div>
+            <div class="ctrl-side">
+              <span><small>set point</small><b data-testid="controller-sp">–</b></span>
+              <span><small>output</small><b data-testid="controller-mv">–</b></span>
+              <span class="bar"><span id="controller-bar"></span></span>
+            </div>
+          </div>
+          <p class="powering">powering up…</p>
+        </article>
+
+        <article class="front" id="inverter" aria-label="PV inverter">
+          <header class="front-head">
+            <span class="model">SunSpec inverter <small>(simulated)</small></span>
+            <span class="kind">10 kW PV · unit 3 · a day in 12 min</span>
+            <span class="indicators">
+              <span class="badge fault" data-testid="fault-badge-inverter" hidden></span>
+              <span class="badge" data-testid="inverter-state">–</span>
+            </span>
+          </header>
+          <div class="totals">
+            <span><small>AC power</small><b data-testid="inverter-power">–</b></span>
+            <span><small>energy</small><b data-testid="inverter-energy">–</b></span>
+            <span><small>DC voltage</small><b data-testid="inverter-dc">–</b></span>
+            <span><small>heat sink</small><b data-testid="inverter-heatsink">–</b></span>
+          </div>
+          <div class="day" aria-label="Simulated time of day">
+            <span class="sun" id="inverter-sun"></span>
+            <span data-testid="inverter-clock">–:–</span>
+          </div>
+          <p class="powering">powering up…</p>
+        </article>
+      </div>
+
+      <div class="console">
+        <div class="targets" role="group" aria-label="Send to">
+          <button type="button" data-testid="target-meter" data-target="meter" aria-pressed="true">meter</button>
+          <button type="button" data-testid="target-controller" data-target="controller" aria-pressed="false">controller</button>
+          <button type="button" data-testid="target-inverter" data-target="inverter" aria-pressed="false">inverter</button>
+          <span class="status" data-testid="status" role="status">starting…</span>
+        </div>
+        <div class="terminal" data-testid="terminal-output" aria-live="polite"></div>
+        <form class="prompt" id="prompt">
+          <label for="line" id="prompt-label">meter&gt;</label>
+          <input id="line" data-testid="terminal-input" maxlength="200" autocomplete="off"
+                 autocapitalize="off" spellcheck="false" placeholder="e.g. read input 0 -t float32 (help)" disabled>
+          <button type="submit" disabled>Send</button>
+        </form>
+
+        <p class="hint">Try these in order:</p>
+        <div class="chips" id="chips"></div>
+
+        <p class="hint">Break something:</p>
+        <div class="faults">
+          <button type="button" data-testid="fault-meter-no-response" data-fault="meter-no-response" disabled>Meter stops answering</button>
+          <button type="button" data-testid="fault-meter-phase-loss" data-fault="meter-phase-loss" disabled>Meter loses phase L2</button>
+          <button type="button" data-testid="fault-controller-sensor-break" data-fault="controller-sensor-break" disabled>Controller sensor breaks</button>
+          <button type="button" data-testid="fault-inverter-grid-loss" data-fault="inverter-grid-loss" disabled>Inverter loses the grid</button>
+          <button type="button" data-testid="reset" class="reset" disabled>Reset bench</button>
+        </div>
+      </div>
+
+      <div class="fallback" data-testid="fallback" hidden>
+        <p><strong>The live demo could not start here.</strong> <span id="fallback-reason"></span></p>
+        <p>This is what it looks like. Everything below works the same with <code>pip install modbus-sim</code>.</p>
+        <img src="img/bench.png" alt="The demo: meter, temperature controller and inverter next to a Modbus terminal" width="1200" height="630">
+        <button type="button" data-testid="retry" id="retry">Retry</button>
+      </div>
+    </section>
+
+    <section class="explain">
+      <h2>What you just used</h2>
+      <div class="flow" aria-label="Your code talks to modbus-sim over Modbus TCP instead of a real device">
+        <span class="box">your SCADA, gateway, Node-RED flow or Python code</span>
+        <span class="arrow">Modbus TCP :5020 →</span>
+        <span class="box sim">modbus-sim</span>
+        <span class="instead">instead of the real devices</span>
+      </div>
+      <p>Every command above became a real Modbus TCP frame (the <code>tx</code> and <code>rx</code> lines)
+        and went through the same code that answers on a network port. modbus-sim normally runs on your
+        laptop or in CI and speaks Modbus TCP, RTU over TCP and RTU on a serial line. The devices
+        behave: the meter's counters count, the controller heats towards its set point, the inverter
+        follows the sun. And they keep the details that break integrations: word order, scale factors,
+        gaps in the map, write protection, exception codes.</p>
+      <p>The three profiles follow public documentation: the Eastron SDM630 Modbus protocol,
+        Omron's E5CC communications manual and the SunSpec model definitions. Where they simplify,
+        the <a href="https://github.com/steitec/modbus-sim#profiles-after-real-devices">README</a> says so.</p>
+    </section>
+
+    <section class="code">
+      <h2>The same thing from Python</h2>
+      <pre><code>pip install modbus-sim
+modbus-sim serve --bench real-devices.yaml     # the bench from this page</code></pre>
+      <pre><code>from pymodbus.client import ModbusTcpClient
+
+c = ModbusTcpClient("127.0.0.1", port=5020)
+c.connect()
+
+r = c.read_input_registers(0, count=2, device_id=1)          # SDM630: L1 voltage
+print(c.convert_from_registers(r.registers, c.DATATYPE.FLOAT32))   # 230.1
+
+r = c.write_register(0x2103, 1500, device_id=2)               # E5CC: set point 150.0
+print(r.exception_code)                                       # 4: writing is off
+c.write_register(0x0000, 0x0001, device_id=2)                 # communications writing on
+c.write_register(0x2103, 1500, device_id=2)                   # now it works</code></pre>
+      <p>The bench file is
+        <a href="https://github.com/steitec/modbus-sim/blob/main/examples/real-devices.yaml">examples/real-devices.yaml</a>.</p>
+    </section>
+
+    <section class="more">
+      <h2>What else it does</h2>
+      <ul>
+        <li><strong>Fault injection</strong> from tests or a control port: no answer, late answers, exceptions,
+          bad CRC, wrong transaction or unit ID, truncated frames, dropped connections, drifting values, device faults.</li>
+        <li><strong>pytest plugin</strong>: the <code>modbus_bench</code> fixture starts devices for a test run.</li>
+        <li><strong>Your own devices</strong> from a YAML file: points in all four tables, 16/32/64-bit integers,
+          floats and strings, word order, scale, limits, signal sources. <code>modbus-sim map</code> prints the register map.</li>
+        <li><strong>Profiles</strong>: Eastron SDM630 · Omron E5CC · SunSpec inverter (models 1 + 103), plus an invented
+          energy meter, temperature controller and frequency converter.</li>
+      </ul>
+      <p class="links">
+        <a href="https://github.com/steitec/modbus-sim">Source on GitHub</a>
+        <a href="https://pypi.org/project/modbus-sim/">PyPI</a>
+        <a href="https://github.com/steitec/modbus-sim/issues">Questions or ideas? Open an issue</a>
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <p>The simulation runs entirely in your browser. This page sets no cookies, has no tracking and sends
+      nothing anywhere. <a href="privacy.html">Privacy</a></p>
+    <p>modbus-sim <span id="version"></span> · MIT licensed · by <a href="https://github.com/steitec">steitec</a> ·
+      Eastron, Omron and SunSpec are trademarks of their owners; modbus-sim is not affiliated with them.</p>
+  </footer>
+</body>
+</html>

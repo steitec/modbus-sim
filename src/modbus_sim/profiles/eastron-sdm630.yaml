@@ -1,0 +1,233 @@
+# Eastron SDM630 Modbus (three-phase DIN-rail energy meter), register map after
+# "Eastron SDM630 Modbus Protocol" V1.5 (2016): every value is an IEEE 754 float32 in
+# two registers, most significant register first (ABCD). Input registers 30001-30381
+# (read with function 04), set-up parameters in holding registers 40001 ff. (also
+# float32, function 03 / 16). Addresses below are 0-based: 30001 -> input 0.
+#
+# Not a copy of the meter: steitec is not affiliated with Eastron. Simplified here:
+# - unlisted addresses read 0 (gaps: zero) so block reads across the map work;
+#   the real meter rejects odd register counts and requests over 80 registers
+# - THD values are constant with a little noise; demand values are exponential
+#   averages over demand_period (the meter uses fixed demand periods)
+# - set-up registers are stored only (no password, restart or register-order logic)
+# - power factor sign: the protocol says negative for inductive loads (pf_sign: -1)
+name: eastron-sdm630
+description: Eastron SDM630 three-phase energy meter (protocol V1.5), float32 ABCD
+identification:
+  vendor: steitec
+  product: SIM-SDM630
+  revision: "1.5"
+  vendor_url: https://github.com/steitec/modbus-sim
+  product_name: modbus-sim profile of the Eastron SDM630 register map
+  model_name: SDM630 (simulated)
+word_order: ABCD
+gaps: zero
+model: energy_meter
+model_params:
+  voltage: 230.0
+  frequency: 50.0
+  current: [10.0, 12.0, 8.0]
+  power_factor: 0.95
+  pf_sign: -1
+  demand_period: 3600
+points:
+  - {name: voltage_l1, table: input, address: 0, type: float32, unit: V, model: voltage_l1}
+  - {name: voltage_l2, table: input, address: 2, type: float32, unit: V, model: voltage_l2}
+  - {name: voltage_l3, table: input, address: 4, type: float32, unit: V, model: voltage_l3}
+  - {name: current_l1, table: input, address: 6, type: float32, unit: A, model: current_l1}
+  - {name: current_l2, table: input, address: 8, type: float32, unit: A, model: current_l2}
+  - {name: current_l3, table: input, address: 10, type: float32, unit: A, model: current_l3}
+  - {name: power_l1, table: input, address: 12, type: float32, unit: W, model: power_l1}
+  - {name: power_l2, table: input, address: 14, type: float32, unit: W, model: power_l2}
+  - {name: power_l3, table: input, address: 16, type: float32, unit: W, model: power_l3}
+  - {name: apparent_power_l1, table: input, address: 18, type: float32, unit: VA,
+     model: apparent_power_l1}
+  - {name: apparent_power_l2, table: input, address: 20, type: float32, unit: VA,
+     model: apparent_power_l2}
+  - {name: apparent_power_l3, table: input, address: 22, type: float32, unit: VA,
+     model: apparent_power_l3}
+  - {name: reactive_power_l1, table: input, address: 24, type: float32, unit: var,
+     model: reactive_power_l1}
+  - {name: reactive_power_l2, table: input, address: 26, type: float32, unit: var,
+     model: reactive_power_l2}
+  - {name: reactive_power_l3, table: input, address: 28, type: float32, unit: var,
+     model: reactive_power_l3}
+  - {name: power_factor_l1, table: input, address: 30, type: float32,
+     model: power_factor_l1}
+  - {name: power_factor_l2, table: input, address: 32, type: float32,
+     model: power_factor_l2}
+  - {name: power_factor_l3, table: input, address: 34, type: float32,
+     model: power_factor_l3}
+  - {name: phase_angle_l1, table: input, address: 36, type: float32, unit: deg,
+     model: phase_angle_l1}
+  - {name: phase_angle_l2, table: input, address: 38, type: float32, unit: deg,
+     model: phase_angle_l2}
+  - {name: phase_angle_l3, table: input, address: 40, type: float32, unit: deg,
+     model: phase_angle_l3}
+  - {name: voltage_avg, table: input, address: 42, type: float32, unit: V,
+     model: voltage_avg}
+  - {name: current_avg, table: input, address: 46, type: float32, unit: A,
+     model: current_avg}
+  - {name: current_sum, table: input, address: 48, type: float32, unit: A,
+     model: current_sum}
+  - {name: power_total, table: input, address: 52, type: float32, unit: W,
+     model: power_total}
+  - {name: apparent_power_total, table: input, address: 56, type: float32, unit: VA,
+     model: apparent_power_total}
+  - {name: reactive_power_total, table: input, address: 60, type: float32, unit: var,
+     model: reactive_power_total}
+  - {name: power_factor_total, table: input, address: 62, type: float32,
+     model: power_factor_total}
+  - {name: phase_angle_total, table: input, address: 66, type: float32, unit: deg,
+     model: phase_angle_total}
+  - {name: frequency, table: input, address: 70, type: float32, unit: Hz, model: frequency}
+  - {name: energy_import, table: input, address: 72, type: float32, unit: kWh,
+     model: energy_import}
+  - {name: energy_export, table: input, address: 74, type: float32, unit: kWh,
+     model: energy_export}
+  - {name: reactive_energy_import, table: input, address: 76, type: float32, unit: kvarh,
+     model: reactive_energy_import}
+  - {name: reactive_energy_export, table: input, address: 78, type: float32, unit: kvarh,
+     model: reactive_energy_export}
+  - {name: apparent_energy, table: input, address: 80, type: float32, unit: kVAh,
+     model: apparent_energy}
+  - {name: charge, table: input, address: 82, type: float32, unit: Ah, model: charge}
+  - {name: power_demand, table: input, address: 84, type: float32, unit: W,
+     model: power_demand}
+  - {name: power_demand_max, table: input, address: 86, type: float32, unit: W,
+     model: power_demand_max}
+  - {name: apparent_power_demand, table: input, address: 100, type: float32, unit: VA,
+     model: apparent_power_demand}
+  - {name: apparent_power_demand_max, table: input, address: 102, type: float32, unit: VA,
+     model: apparent_power_demand_max}
+  - {name: neutral_current_demand, table: input, address: 104, type: float32, unit: A,
+     model: neutral_current_demand}
+  - {name: neutral_current_demand_max, table: input, address: 106, type: float32, unit: A,
+     model: neutral_current_demand_max}
+  - {name: voltage_l12, table: input, address: 200, type: float32, unit: V,
+     model: voltage_l12}
+  - {name: voltage_l23, table: input, address: 202, type: float32, unit: V,
+     model: voltage_l23}
+  - {name: voltage_l31, table: input, address: 204, type: float32, unit: V,
+     model: voltage_l31}
+  - {name: voltage_ll_avg, table: input, address: 206, type: float32, unit: V,
+     model: voltage_ll_avg}
+  - {name: neutral_current, table: input, address: 224, type: float32, unit: A,
+     model: neutral_current}
+  - {name: voltage_thd_l1, table: input, address: 234, type: float32, unit: "%",
+     source: [{type: constant, value: 1.8}, {type: noise, sigma: 0.05}]}
+  - {name: voltage_thd_l2, table: input, address: 236, type: float32, unit: "%",
+     source: [{type: constant, value: 1.8}, {type: noise, sigma: 0.05}]}
+  - {name: voltage_thd_l3, table: input, address: 238, type: float32, unit: "%",
+     source: [{type: constant, value: 1.8}, {type: noise, sigma: 0.05}]}
+  - {name: current_thd_l1, table: input, address: 240, type: float32, unit: "%",
+     source: [{type: constant, value: 6.5}, {type: noise, sigma: 0.2}]}
+  - {name: current_thd_l2, table: input, address: 242, type: float32, unit: "%",
+     source: [{type: constant, value: 6.5}, {type: noise, sigma: 0.2}]}
+  - {name: current_thd_l3, table: input, address: 244, type: float32, unit: "%",
+     source: [{type: constant, value: 6.5}, {type: noise, sigma: 0.2}]}
+  - {name: voltage_thd_avg, table: input, address: 248, type: float32, unit: "%",
+     source: [{type: constant, value: 1.8}, {type: noise, sigma: 0.05}]}
+  - {name: current_thd_avg, table: input, address: 250, type: float32, unit: "%",
+     source: [{type: constant, value: 6.5}, {type: noise, sigma: 0.2}]}
+  - {name: power_factor_total_inverted, table: input, address: 254, type: float32, model: power_factor_total, scale: -1,
+     description: "total power factor with the sign inverted (protocol note 5)"}
+  - {name: current_demand_l1, table: input, address: 258, type: float32, unit: A,
+     model: current_demand_l1}
+  - {name: current_demand_l2, table: input, address: 260, type: float32, unit: A,
+     model: current_demand_l2}
+  - {name: current_demand_l3, table: input, address: 262, type: float32, unit: A,
+     model: current_demand_l3}
+  - {name: current_demand_max_l1, table: input, address: 264, type: float32, unit: A,
+     model: current_demand_max_l1}
+  - {name: current_demand_max_l2, table: input, address: 266, type: float32, unit: A,
+     model: current_demand_max_l2}
+  - {name: current_demand_max_l3, table: input, address: 268, type: float32, unit: A,
+     model: current_demand_max_l3}
+  - {name: voltage_thd_l12, table: input, address: 334, type: float32, unit: "%",
+     source: [{type: constant, value: 1.8}, {type: noise, sigma: 0.05}]}
+  - {name: voltage_thd_l23, table: input, address: 336, type: float32, unit: "%",
+     source: [{type: constant, value: 1.8}, {type: noise, sigma: 0.05}]}
+  - {name: voltage_thd_l31, table: input, address: 338, type: float32, unit: "%",
+     source: [{type: constant, value: 1.8}, {type: noise, sigma: 0.05}]}
+  - {name: voltage_thd_ll_avg, table: input, address: 340, type: float32, unit: "%",
+     source: [{type: constant, value: 1.8}, {type: noise, sigma: 0.05}]}
+  - {name: energy_total, table: input, address: 342, type: float32, unit: kWh,
+     model: energy_total}
+  - {name: reactive_energy_total, table: input, address: 344, type: float32, unit: kvarh,
+     model: reactive_energy_total}
+  - {name: energy_import_l1, table: input, address: 346, type: float32, unit: kWh,
+     model: energy_import_l1}
+  - {name: energy_import_l2, table: input, address: 348, type: float32, unit: kWh,
+     model: energy_import_l2}
+  - {name: energy_import_l3, table: input, address: 350, type: float32, unit: kWh,
+     model: energy_import_l3}
+  - {name: energy_export_l1, table: input, address: 352, type: float32, unit: kWh,
+     model: energy_export_l1}
+  - {name: energy_export_l2, table: input, address: 354, type: float32, unit: kWh,
+     model: energy_export_l2}
+  - {name: energy_export_l3, table: input, address: 356, type: float32, unit: kWh,
+     model: energy_export_l3}
+  - {name: energy_total_l1, table: input, address: 358, type: float32, unit: kWh,
+     model: energy_total_l1}
+  - {name: energy_total_l2, table: input, address: 360, type: float32, unit: kWh,
+     model: energy_total_l2}
+  - {name: energy_total_l3, table: input, address: 362, type: float32, unit: kWh,
+     model: energy_total_l3}
+  - {name: reactive_energy_import_l1, table: input, address: 364, type: float32, unit: kvarh,
+     model: reactive_energy_import_l1}
+  - {name: reactive_energy_import_l2, table: input, address: 366, type: float32, unit: kvarh,
+     model: reactive_energy_import_l2}
+  - {name: reactive_energy_import_l3, table: input, address: 368, type: float32, unit: kvarh,
+     model: reactive_energy_import_l3}
+  - {name: reactive_energy_export_l1, table: input, address: 370, type: float32, unit: kvarh,
+     model: reactive_energy_export_l1}
+  - {name: reactive_energy_export_l2, table: input, address: 372, type: float32, unit: kvarh,
+     model: reactive_energy_export_l2}
+  - {name: reactive_energy_export_l3, table: input, address: 374, type: float32, unit: kvarh,
+     model: reactive_energy_export_l3}
+  - {name: reactive_energy_total_l1, table: input, address: 376, type: float32, unit: kvarh,
+     model: reactive_energy_total_l1}
+  - {name: reactive_energy_total_l2, table: input, address: 378, type: float32, unit: kvarh,
+     model: reactive_energy_total_l2}
+  - {name: reactive_energy_total_l3, table: input, address: 380, type: float32, unit: kvarh,
+     model: reactive_energy_total_l3}
+  - {name: demand_time, table: holding, address: 0, type: float32, unit: min,
+     value: 0, access: ro,
+     description: "minutes into the first demand calculation"}
+  - {name: demand_period, table: holding, address: 2, type: float32, unit: min,
+     value: 60, min: 0, max: 60,
+     description: "0, 5, 8, 10, 15, 20, 30 or 60 minutes (stored only)"}
+  - {name: system_voltage, table: holding, address: 6, type: float32, unit: V,
+     value: 230, access: ro}
+  - {name: system_current, table: holding, address: 8, type: float32, unit: A,
+     value: 100, access: ro}
+  - {name: system_type, table: holding, address: 10, type: float32,
+     value: 3, min: 1, max: 3,
+     description: "3 = 3p4w, 2 = 3p3w, 1 = 1p2w (stored only; password on the meter)"}
+  - {name: pulse_width, table: holding, address: 12, type: float32, unit: ms,
+     value: 100, min: 60, max: 200,
+     description: "relay pulse width 60, 100 or 200 ms"}
+  - {name: password_lock, table: holding, address: 14, type: float32,
+     value: 0, access: ro, description: "0 = locked, 1 = unlocked"}
+  - {name: network_parity, table: holding, address: 18, type: float32,
+     value: 0, min: 0, max: 3,
+     description: "0 = none/1 stop, 1 = even, 2 = odd, 3 = none/2 stop (stored only)"}
+  - {name: node_address, table: holding, address: 20, type: float32,
+     value: 1, min: 1, max: 247,
+     description: "Modbus address (stored only; the simulator keeps its unit ID)"}
+  - {name: pulse_divisor, table: holding, address: 22, type: float32,
+     value: 0, min: 0, max: 5,
+     description: "0 = 0.025, 1 = 0.01, 2 = 0.1, 3 = 1, 4 = 10, 5 = 100 kWh/imp"}
+  - {name: password, table: holding, address: 24, type: float32,
+     value: 1000, min: 0, max: 9999}
+  - {name: baud_rate, table: holding, address: 28, type: float32,
+     value: 2, min: 0, max: 4,
+     description: "0 = 2400, 1 = 4800, 2 = 9600, 3 = 19200, 4 = 38400 (stored only)"}
+  - {name: system_power, table: holding, address: 36, type: float32, unit: W,
+     value: 3300, access: ro}
+  - {name: relay1_energy_type, table: holding, address: 86, type: float32,
+     value: 4, min: 1, max: 8,
+     description: "pulse output 1: 1/2/4 = import/total/export active, 5/6/8 = reactive"}
+  - {name: reset_energy, table: coil, address: 0, model: reset_energy,
+     description: "not on the meter: write 1 to reset the simulated counters"}

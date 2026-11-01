@@ -1,0 +1,9 @@
+# The three profiles after real register maps behind one Modbus TCP gateway, as on
+# the browser demo (https://modbus-sim.steitec.net). Run with
+#   modbus-sim serve --bench examples/real-devices.yaml
+devices:
+  - {profile: eastron-sdm630, unit: 1, name: meter}
+  - {profile: omron-e5cc, unit: 2, name: controller,
+     model_params: {time_scale: 10}}          # heats ten times faster than real time
+  - {profile: sunspec-inverter, unit: 3, name: inverter,
+     model_params: {time_scale: 120}}         # a day in 12 minutes

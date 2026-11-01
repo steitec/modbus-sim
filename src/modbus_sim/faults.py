@@ -19,6 +19,9 @@ drift              point, per_second                   a numeric point runs away
 trip               code=1                              vfd: fault trip, latched until reset
 sensor_break       -                                   temperature controller: sensor broken
 phase_loss         phase (1-3)                         energy meter: phase lost
+grid_loss          -                                   PV inverter: grid gone, state fault
+ground_fault       -                                   PV inverter: ground fault, state fault
+over_temp          -                                   PV inverter: throttled to half power
 =================  ==================================  ==========================================
 
 ``count`` faults wear off after that many requests to the device; the others stay

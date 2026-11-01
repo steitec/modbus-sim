@@ -1,0 +1,13 @@
+{
+  "name": "modbus-sim-web",
+  "private": true,
+  "description": "Browser tests for the modbus-sim demo page",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "screenshot": "node tests/screenshot.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1"
+  }
+}

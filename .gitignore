@@ -5,3 +5,7 @@ __pycache__/
 build/
 dist/
 .tools/
+web/.cache/
+web/node_modules/
+web/test-results/
+web/dist/
