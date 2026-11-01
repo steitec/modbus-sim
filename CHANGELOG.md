@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## 0.2.0 - unreleased
+
+- Profiles after the published register maps of real devices:
+  `eastron-sdm630` (Eastron SDM630 protocol V1.5, float32 ABCD, input and set-up
+  registers), `omron-e5cc` (Omron E5CC two-byte mode with operation commands and
+  the communications-writing enable) and `sunspec-inverter` (SunSpec models 1 and
+  103 with scale factors)
+- New model `pv_inverter`: day curve, SunSpec operating states and event bits,
+  faults `grid_loss`, `ground_fault`, `over_temp`
+- `energy_meter` model: apparent and reactive power per phase, phase angles,
+  averages, neutral current, per-phase import/export/total kWh and kvarh, kVAh,
+  Ah, demand values with maxima; parameters `pf_sign` and `demand_period`
+- `temperature_controller` model: operation command register and an optional
+  write enable (`comms_write`)
+- Fixed: the word order table named Eastron among CDAB devices; Eastron meters
+  send the most significant register first (ABCD)
+
 ## 0.1.0 - 2026-10-31
 
 - Modbus TCP, RTU over TCP, and RTU on a serial port (pyserial) or a virtual

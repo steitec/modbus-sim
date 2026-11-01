@@ -12,7 +12,10 @@
 
 Simulated Modbus devices that **behave**: an energy meter whose counters count,
 a temperature controller that heats towards its setpoint, a frequency converter
-that ramps up when you set the run bit and trips when you tell it to. They speak
+that ramps up when you set the run bit and trips when you tell it to. Three
+profiles follow the published register maps of real devices: an Eastron SDM630
+energy meter, an Omron E5CC temperature controller and a SunSpec PV inverter.
+They speak
 Modbus TCP, RTU over TCP and RTU on a serial line or a virtual serial port, so
 you can develop and test SCADA links, data loggers, gateways, Node-RED flows or
 your own Modbus code without the hardware, also in CI.
@@ -101,6 +104,37 @@ such as com0com.
 | `energy-meter` | three-phase meter: voltages, currents, powers, power factor, frequency, energy import/export | float32 in **CDAB** word order, Wh counters as uint64, reset coil |
 | `temperature-controller` | PI controller heating a first-order process; run/stop, auto/manual, alarm limits | int16 scaled by 0.1; sensor break reads 3276.7 (0x7FFF) |
 | `vfd` | frequency converter: control word, speed reference, accel/decel ramps, status word, current, voltage, rpm, run hours | trip is latched until a fault reset (rising edge) and a new run edge |
+| `eastron-sdm630` | Eastron SDM630 three-phase meter: the full input register map of protocol V1.5 (volts, amps, powers, power factor, phase angle, THD, demand, per-phase import/export kWh and kvarh) and the set-up holding registers | float32 in **ABCD**, input registers 30001 ff.; unlisted addresses read 0 |
+| `omron-e5cc` | Omron E5CC temperature controller in two-byte mode: PV, set point, MV, manual MV, operation commands (run/stop, auto/manual) | writes are refused until **communications writing** is switched on with operation command 0x0001 |
+| `sunspec-inverter` | three-phase PV inverter with the SunSpec map that SMA, Fronius, SolarEdge and others publish: model 1 (common) + model 103, on a day curve | "SunS" at 40000, integer + scale-factor registers, SunSpec states and event bits |
+
+### Profiles after real devices
+
+`eastron-sdm630`, `omron-e5cc` and `sunspec-inverter` are built from public
+documentation, so code written against them should work against the real
+device's register map:
+
+| profile | source | simplified |
+|---|---|---|
+| `eastron-sdm630` | Eastron "SDM630 Modbus Protocol" V1.5 | odd register counts and requests over 80 registers are accepted; THD is constant with noise; demand is an exponential average; set-up registers are stored only (no password, restart or register-order switching); a `reset_energy` coil is added |
+| `omron-e5cc` | Omron "E5@C Communications Manual" (H175), sections 4 and 5 | two-byte mode only; the status words are not simulated (their bit layout could not be verified from public sources) and read 0; commands other than communications writing, run/stop and auto/manual are accepted without effect |
+| `sunspec-inverter` | SunSpec model definitions (github.com/sunspec/models) | fixed scale factors; no control models (120-127); generic manufacturer "steitec" |
+
+Each was checked against a third-party client: `sdm_modbus` reads the
+simulated SDM630, and the SunSpec Alliance's `pysunspec2` scans and decodes
+the inverter. steitec is not affiliated with Eastron, Omron or the SunSpec
+Alliance; product names identify the documented register maps only. Firmware
+versions of real devices differ, so check your device's documentation.
+
+```console
+$ modbus-sim serve omron-e5cc &
+$ modbus-sim write holding 0x2103 100 --scale 0.1     # refused: exception 03
+$ modbus-sim write holding 0 0x0001                   # communications writing on
+$ modbus-sim write holding 0x2103 100 --scale 0.1     # set point 100.0 degC
+$ modbus-sim serve sunspec-inverter --port 5030 \
+    --control-port 5031 &
+$ modbus-sim read holding 40000 -c 2 -t string --port 5030
+```
 
 `modbus-sim map PROFILE` prints the complete register map, with the 0-based
 protocol address and the conventional reference (`400001` = holding
@@ -156,8 +190,9 @@ points:
 - **min/max**: written values outside are exception 03
 - **sources**: `constant` (value), `ramp` (start, stop, period), `sine`
   (offset, amplitude, period), `noise` (sigma); a list is added up
-- **model**: the three bundled profiles bind points to a model with
-  `model: <variable>`; `model_params` tune it (`time_scale` speeds any model up)
+- **model**: the bundled profiles bind points to a model (`energy_meter`,
+  `temperature_controller`, `vfd`, `pv_inverter`) with `model: <variable>`;
+  `model_params` tune it (`time_scale` speeds any model up)
 - **bits**: names for the bits of a uint16 register (shown by `map`)
 
 A point named `exception_status` provides the byte returned by function 07.
@@ -224,7 +259,10 @@ clear DEVICE [FAULT]`:
 | `drift` | point, per_second | a numeric point runs away |
 | `trip` | code=1 | `vfd`: fault trip, coasts to stop, latched until reset |
 | `sensor_break` | | `temperature-controller`: PV reads 3276.7, output off, alarm |
-| `phase_loss` | phase | `energy-meter`: that phase reads 0 V, 0 A |
+| `phase_loss` | phase | `energy-meter`, `eastron-sdm630`: that phase reads 0 V, 0 A |
+| `grid_loss` | | `sunspec-inverter`: state 7 (fault), event bit 4, AC values 0 |
+| `ground_fault` | | `sunspec-inverter`: state 7 (fault), event bit 0 |
+| `over_temp` | | `sunspec-inverter`: state 5 (throttled) at half power, event bit 7 |
 
 ## Control channel
 
@@ -287,8 +325,11 @@ starts. See [examples/test_example.py](examples/test_example.py).
 
 - For development and testing; not a certified or conformance-tested Modbus
   implementation.
-- The bundled profiles are invented devices with plausible register maps, not
-  copies of real products. Models are plausible, not physically accurate.
+- `energy-meter`, `temperature-controller` and `vfd` are invented devices with
+  plausible register maps. The profiles after real devices follow the
+  published register maps but not every behaviour of the device (see
+  [Profiles after real devices](#profiles-after-real-devices)). Models are
+  plausible, not physically accurate.
 - No Modbus ASCII, no Modbus/TCP Security (TLS), no function codes 11, 12, 17,
   20, 21, 24; diagnostics only sub-function 00.
 - RTU framing finds the end of a request from its function code, and the
