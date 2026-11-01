@@ -105,7 +105,7 @@ such as com0com.
 | `temperature-controller` | PI controller heating a first-order process; run/stop, auto/manual, alarm limits | int16 scaled by 0.1; sensor break reads 3276.7 (0x7FFF) |
 | `vfd` | frequency converter: control word, speed reference, accel/decel ramps, status word, current, voltage, rpm, run hours | trip is latched until a fault reset (rising edge) and a new run edge |
 | `eastron-sdm630` | Eastron SDM630 three-phase meter: the full input register map of protocol V1.5 (volts, amps, powers, power factor, phase angle, THD, demand, per-phase import/export kWh and kvarh) and the set-up holding registers | float32 in **ABCD**, input registers 30001 ff.; unlisted addresses read 0 |
-| `omron-e5cc` | Omron E5CC temperature controller in two-byte mode: PV, set point, MV, manual MV, operation commands (run/stop, auto/manual) | writes are refused until **communications writing** is switched on with operation command 0x0001 |
+| `omron-e5cc` | Omron E5CC temperature controller in two-byte mode: PV, status, set point, MV, manual MV, operation commands (run/stop, auto/manual, write mode) | writes answer exception 04 until **communications writing** is switched on with operation command 0x0001 |
 | `sunspec-inverter` | three-phase PV inverter with the SunSpec map that SMA, Fronius, SolarEdge and others publish: model 1 (common) + model 103, on a day curve | "SunS" at 40000, integer + scale-factor registers, SunSpec states and event bits |
 
 ### Profiles after real devices
@@ -117,7 +117,7 @@ device's register map:
 | profile | source | simplified |
 |---|---|---|
 | `eastron-sdm630` | Eastron "SDM630 Modbus Protocol" V1.5 | odd register counts and requests over 80 registers are accepted; THD is constant with noise; demand is an exponential average; set-up registers are stored only (no password, restart or register-order switching); a `reset_energy` coil is added |
-| `omron-e5cc` | Omron "E5@C Communications Manual" (H175), sections 4 and 5 | two-byte mode only; the status words are not simulated (their bit layout could not be verified from public sources) and read 0; commands other than communications writing, run/stop and auto/manual are accepted without effect |
+| `omron-e5cc` | Omron "E5@C Communications Manual" (H175), sections 3-2, 4 and 5 | two-byte mode only; status sets only the bits the model knows (input error, control output, write mode, run/stop, communications writing, auto/manual); no heater current, alarm values or status 2; commands other than communications writing, run/stop, auto/manual and write mode are accepted without effect |
 | `sunspec-inverter` | SunSpec model definitions (github.com/sunspec/models) | fixed scale factors; no control models (120-127); generic manufacturer "steitec" |
 
 Each was checked against a third-party client: `sdm_modbus` reads the
@@ -128,7 +128,7 @@ versions of real devices differ, so check your device's documentation.
 
 ```console
 $ modbus-sim serve omron-e5cc &
-$ modbus-sim write holding 0x2103 100 --scale 0.1     # refused: exception 03
+$ modbus-sim write holding 0x2103 100 --scale 0.1     # refused: exception 04
 $ modbus-sim write holding 0 0x0001                   # communications writing on
 $ modbus-sim write holding 0x2103 100 --scale 0.1     # set point 100.0 degC
 $ modbus-sim serve sunspec-inverter --port 5030 \
@@ -231,7 +231,8 @@ the bench file.
 Anything else answers exception 01. Exceptions follow the specification:
 02 for unmapped or read-only addresses and for writes that would change only
 part of a 32/64-bit value, 03 for bad quantities, byte counts and values
-outside `min`/`max`.
+outside `min`/`max`, 04 where a device refuses a write in its present state
+(`omron-e5cc` with communications writing off).
 
 **Unit IDs.** On Modbus TCP an unknown unit answers exception 0x0B (gateway
 target failed to respond); a single device also answers unit 0 and 255. On

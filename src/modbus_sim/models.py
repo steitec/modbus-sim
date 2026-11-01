@@ -28,7 +28,12 @@ from .profile import ProfileError
 
 
 class ModelError(ValueError):
-    """A write the model refuses (reported to the Modbus master as exception 03)."""
+    """A write the model refuses, reported to the Modbus master as exception `code`
+    (03 illegal data value by default, 04 when the device refuses it in its state)."""
+
+    def __init__(self, message: str, code: int = 0x03):
+        super().__init__(message)
+        self.code = code
 
 
 def _param(params: dict, name: str, default: float, low: float = -math.inf,
@@ -318,7 +323,8 @@ class TemperatureController(Model):
         "pv": False, "setpoint": True, "output": False, "manual_output": True,
         "run": True, "mode": True, "alarm_high_limit": True, "alarm_low_limit": True,
         "alarm_high": False, "alarm_low": False, "sensor_break": False, "status": False,
-        "command": True, "comms_write": False,
+        "command": True, "comms_write": False, "e5_status_low": False,
+        "e5_status_high": False,
     }
     # operation command: high byte = command code, low byte = related information
     # (Omron E5@C layout); 00 = communications writing, 01 = run/stop, 09 = auto/manual
@@ -341,6 +347,7 @@ class TemperatureController(Model):
         self.running = bool(params.get("run", True))
         # False: setting writes are refused until the operation command 0x0001 enables them
         self.comms_write = bool(params.get("comms_write", True))
+        self.ram_write = False   # operation command 04: write mode
         self.pv = self.ambient
         self.output = 0.0
         self.manual_output = 0.0
@@ -395,6 +402,15 @@ class TemperatureController(Model):
             return 0
         if name == "comms_write":
             return self.comms_write
+        if name == "e5_status_low":
+            # Omron E5@C status, lower word: bit 6 input error, bit 8 control output
+            # (heating). Alarm, heater and CT bits are not simulated.
+            return (self._broken() << 6) | ((self.output > 0) << 8)
+        if name == "e5_status_high":
+            # upper word (bits 16-31 -> 0-15): 20 write mode, 24 run/stop (1 = stop),
+            # 25 communications writing, 26 auto/manual (1 = manual)
+            return ((self.ram_write << 4) | ((not self.running) << 8)
+                    | (self.comms_write << 9) | ((self.mode == 1) << 10))
         if name == "status":
             return (self.running | (self.mode << 1) | (high << 2) | (low << 3)
                     | (self._broken() << 4))
@@ -408,8 +424,11 @@ class TemperatureController(Model):
             self.comms_write = bool(info)
             return
         if not self.comms_write:
-            raise ModelError("communications writing is off (command 0x0001 turns it on)")
-        if code == 0x01:
+            raise ModelError("communications writing is off (command 0x0001 turns it on)",
+                             code=0x04)
+        if code == 0x04:
+            self.ram_write = bool(info)
+        elif code == 0x01:
             self.running = info == 0          # 00 = run, 01 = stop
         elif code == 0x09:
             self.write("mode", info)          # 00 = auto, 01 = manual
@@ -420,7 +439,8 @@ class TemperatureController(Model):
             self._command(int(value))
             return
         if not self.comms_write:
-            raise ModelError("communications writing is off (command 0x0001 turns it on)")
+            raise ModelError("communications writing is off (command 0x0001 turns it on)",
+                             code=0x04)
         if name == "run":
             self.running = bool(value)
         elif name == "mode":

@@ -101,6 +101,8 @@ def test_pf_sign_must_be_one(make_device):
 
 
 # --- Omron E5CC (H175, two-byte mode) -------------------------------------------------
+# H175 4-4-3: operation command H'0101 = stop; with communications writing off, writes
+# answer error code 04 (operation error); a wrong command code answers 03.
 
 def command(dev, value):
     response = dev.handle(struct.pack(">BHH", 6, 0x0000, value))
@@ -109,20 +111,23 @@ def command(dev, value):
 
 def test_e5cc_writes_need_communications_writing(make_device):
     dev = make_device("omron-e5cc")
-    assert write(dev, 0x2103, 1000) == ("exception", 3)
-    assert command(dev, 0x0101) == ("exception", 3)        # stop refused as well
+    assert write(dev, 0x2103, 1000) == ("exception", 4)    # operation error
+    assert command(dev, 0x0101) == ("exception", 4)        # stop refused as well
     assert command(dev, 0x0001) == "ok"                     # communications writing on
     assert write(dev, 0x2103, 1000) == "ok"
     assert read(dev, 3, 0x2002, 1) == [1000]                # internal SP = 100.0 degC
     assert command(dev, 0x0000) == "ok"                     # off again
-    assert write(dev, 0x2103, 500) == ("exception", 3)
+    assert write(dev, 0x2103, 500) == ("exception", 4)
+    assert command(dev, 0x0001) == "ok"
+    assert write(dev, 0x2103, 9999) == ("exception", 3)    # outside the SP limits
 
 
 def test_e5cc_monitor_block_and_constants(make_device):
     dev = make_device("omron-e5cc")
-    words = read(dev, 3, 0x2000, 5)
+    words = read(dev, 3, 0x2000, 6)
     assert words[0] == pytest.approx(220, abs=2)            # PV 22.0 degC
-    assert words[1] == 0 and words[3] == 0                  # status, heater current: 0
+    assert words[1] == 0                                    # status: nothing set
+    assert words[3] == 0 and words[5] == 0                  # heater current, MV cooling
     assert read(dev, 3, 0x2410, 1) == [1]                   # one decimal
     assert read(dev, 3, 0x2404, 1) == [0]
 
@@ -151,6 +156,23 @@ def test_e5cc_sensor_break(make_device):
     dev = make_device("omron-e5cc")
     dev.faults.inject("sensor_break")
     assert read(dev, 3, 0x2000, 1) == [0x7FFF]
+    assert read(dev, 3, 0x2001, 1)[0] & 1 << 6             # input error
+
+
+def test_e5cc_status_bits(make_device, clock):
+    dev = make_device("omron-e5cc")
+    assert read(dev, 3, 0x2407, 1) == [0]                   # run, writing off, auto
+    command(dev, 0x0001)
+    assert read(dev, 3, 0x2407, 1) == [1 << 9]              # bit 25: writing on
+    write(dev, 0x2103, 1000)
+    clock.advance(5)
+    low = read(dev, 3, 0x2001, 1)[0]
+    assert low & 1 << 8                                      # control output (heating)
+    assert read(dev, 3, 0x2406, 1) == [low]
+    command(dev, 0x0101)                                     # stop
+    command(dev, 0x0901)                                     # manual
+    command(dev, 0x0401)                                     # RAM write mode
+    assert read(dev, 3, 0x2407, 1) == [1 << 4 | 1 << 8 | 1 << 9 | 1 << 10]
 
 
 def test_generic_controller_still_writable(make_device):

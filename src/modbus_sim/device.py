@@ -114,7 +114,7 @@ class Point:
             try:
                 self.device.model.set(self.spec.model, value)
             except ModelError as exc:
-                raise ModbusException(frame.ILLEGAL_DATA_VALUE, str(exc)) from None
+                raise ModbusException(exc.code, str(exc)) from None
         elif self.signal is not None:
             self.override = value  # a written value holds until the control channel resets it
         else:

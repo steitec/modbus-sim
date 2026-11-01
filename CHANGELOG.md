@@ -8,16 +8,18 @@ All notable changes to this project are documented here. The format follows
 
 - Profiles after the published register maps of real devices:
   `eastron-sdm630` (Eastron SDM630 protocol V1.5, float32 ABCD, input and set-up
-  registers), `omron-e5cc` (Omron E5CC two-byte mode with operation commands and
-  the communications-writing enable) and `sunspec-inverter` (SunSpec models 1 and
+  registers), `omron-e5cc` (Omron E5CC two-byte mode with status words, operation
+  commands and the communications-writing enable) and `sunspec-inverter` (SunSpec models 1 and
   103 with scale factors)
 - New model `pv_inverter`: day curve, SunSpec operating states and event bits,
   faults `grid_loss`, `ground_fault`, `over_temp`
 - `energy_meter` model: apparent and reactive power per phase, phase angles,
   averages, neutral current, per-phase import/export/total kWh and kvarh, kVAh,
   Ah, demand values with maxima; parameters `pf_sign` and `demand_period`
-- `temperature_controller` model: operation command register and an optional
-  write enable (`comms_write`)
+- `temperature_controller` model: operation command register, an optional
+  write enable (`comms_write`) and the Omron E5@C status words
+- A model can refuse a write with exception 04 instead of 03 (the E5CC answers
+  04, operation error, while communications writing is off)
 - Fixed: the word order table named Eastron among CDAB devices; Eastron meters
   send the most significant register first (ABCD)
 
