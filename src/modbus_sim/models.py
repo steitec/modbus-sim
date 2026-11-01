@@ -7,11 +7,15 @@ the simulated process up (a VFD ramp of 10 s takes 1 s at ``time_scale: 10``).
 Models are deliberately simple and plausible rather than accurate:
 
 - ``energy_meter``: three phases, voltage/current/power factor with slow load
-  variation, powers and energy counters integrated over time. Fault ``phase_loss``.
+  variation; active, reactive and apparent powers, per-phase and total energy
+  counters, demand values with maxima. Fault ``phase_loss``.
 - ``temperature_controller``: a PI controller heating a first-order plant;
-  run/stop, auto/manual, alarm limits. Fault ``sensor_break``.
+  run/stop, auto/manual, alarm limits, an optional operation command register
+  with a write enable (as on Omron controllers). Fault ``sensor_break``.
 - ``vfd``: control word, speed reference, acceleration/deceleration ramps, status
   word, output current/voltage, fault trip with reset. Fault ``trip``.
+- ``pv_inverter``: three-phase PV inverter on a day curve with SunSpec operating
+  states and event bits. Faults ``grid_loss``, ``ground_fault``, ``over_temp``.
 """
 from __future__ import annotations
 
@@ -112,18 +116,44 @@ class Model:
 
 # --- energy meter -------------------------------------------------------------------
 
+_PHASES = (1, 2, 3)
+# model variable -> demand key
+_DEMAND_VARS = {"power_demand": "power", "apparent_power_demand": "apparent_power",
+                "neutral_current_demand": "neutral_current",
+                **{f"current_demand_l{i}": f"current_l{i}" for i in _PHASES}}
+_DEMAND_MAX_VARS = {"power_demand_max": "power",
+                    "apparent_power_demand_max": "apparent_power",
+                    "neutral_current_demand_max": "neutral_current",
+                    **{f"current_demand_max_l{i}": f"current_l{i}" for i in _PHASES}}
+
+
 class EnergyMeter(Model):
     PARAMS = ("voltage", "frequency", "current", "power_factor", "variation", "period",
-              "export")
+              "export", "pf_sign", "demand_period")
     FAULTS = {"phase_loss": ("phase",)}
     VARIABLES = {
-        **{f"{q}_l{i}": False for q in ("voltage", "current", "power", "power_factor")
-           for i in (1, 2, 3)},
+        **{f"{q}_l{i}": False for q in (
+            "voltage", "current", "power", "power_factor", "apparent_power",
+            "reactive_power", "phase_angle", "energy_import", "energy_export",
+            "energy_total", "reactive_energy_import", "reactive_energy_export",
+            "reactive_energy_total", "current_demand", "current_demand_max")
+           for i in _PHASES},
         "voltage_l12": False, "voltage_l23": False, "voltage_l31": False,
+        "voltage_avg": False, "voltage_ll_avg": False, "current_avg": False,
+        "current_sum": False, "neutral_current": False,
         "power_total": False, "reactive_power_total": False, "apparent_power_total": False,
-        "power_factor_total": False, "frequency": False,
-        "energy_import": False, "energy_export": False, "reset_energy": True,
+        "power_factor_total": False, "phase_angle_total": False, "frequency": False,
+        "energy_import": False, "energy_export": False, "energy_total": False,
+        "reactive_energy_import": False, "reactive_energy_export": False,
+        "reactive_energy_total": False, "apparent_energy": False, "charge": False,
+        "power_demand": False, "power_demand_max": False,
+        "apparent_power_demand": False, "apparent_power_demand_max": False,
+        "neutral_current_demand": False, "neutral_current_demand_max": False,
+        "reset_energy": True,
     }
+    # demand values: exponentially smoothed over demand_period, with a running maximum
+    _DEMANDS = ("power", "apparent_power", "neutral_current",
+                *(f"current_l{i}" for i in _PHASES))
 
     def __init__(self, params, clock, seed=None):
         super().__init__(params, clock, seed)
@@ -139,9 +169,24 @@ class EnergyMeter(Model):
         self.variation = _param(params, "variation", 0.1, 0.0, 1.0)
         self.period = _param(params, "period", 60.0, 1e-3)
         self.export = bool(params.get("export", False))
+        sign = params.get("pf_sign", 1)
+        if sign not in (1, -1) or isinstance(sign, bool):
+            raise ProfileError("model_params: pf_sign is 1 or -1")
+        self.pf_sign = sign
+        self.demand_period = _param(params, "demand_period", 900.0, 1.0, 1e6)
         self.elapsed = 0.0
-        self.energy_import = 0.0  # kWh
-        self.energy_export = 0.0
+        self._reset()
+
+    def _reset(self) -> None:
+        # per phase, all in k-units (kWh, kvarh)
+        self.imported = [0.0, 0.0, 0.0]
+        self.exported = [0.0, 0.0, 0.0]
+        self.q_imported = [0.0, 0.0, 0.0]
+        self.q_exported = [0.0, 0.0, 0.0]
+        self.apparent_energy = 0.0   # kVAh
+        self.charge = 0.0            # Ah
+        self.demand = dict.fromkeys(self._DEMANDS, 0.0)
+        self.demand_max = dict.fromkeys(self._DEMANDS, 0.0)
 
     def _phase(self, i: int) -> tuple[float, float, float]:
         """(voltage, current, power factor) of phase i (0-based) at the current time."""
@@ -152,72 +197,135 @@ class EnergyMeter(Model):
         noise = self._rng.gauss(0, 0.002)
         return (self.voltage * (1 + noise), self.current[i] * load, self.pf)
 
-    def _power(self, i: int) -> float:
-        v, c, pf = self._phase(i)
-        return v * c * pf * (-1 if self.export else 1)
+    def _snapshot(self) -> dict[str, list[float]]:
+        phases = [self._phase(i) for i in range(3)]
+        sign = -1 if self.export else 1
+        v = [ph[0] for ph in phases]
+        c = [ph[1] for ph in phases]
+        s = [vi * ci for vi, ci in zip(v, c)]
+        p = [sign * si * ph[2] for si, ph in zip(s, phases)]
+        q = [math.sqrt(max(si * si - pi * pi, 0.0)) for si, pi in zip(s, p)]
+        pf = [ph[2] for ph in phases]
+        return {"v": v, "c": c, "s": s, "p": p, "q": q, "pf": pf}
+
+    @staticmethod
+    def _neutral(c: list[float]) -> float:
+        """Neutral current of three currents 120 degrees apart (same power factor)."""
+        a, b, d = c
+        return math.sqrt(max(a * a + b * b + d * d - a * b - b * d - d * a, 0.0))
 
     def advance(self, dt: float) -> None:
         steps = max(1, min(1000, math.ceil(dt / 1.0)))
         h = dt / steps
+        alpha = 1 - math.exp(-h / self.demand_period)
         for _ in range(steps):
             self.elapsed += h
-            total = sum(self._power(i) for i in range(3))
-            kwh = abs(total) * h / 3600 / 1000
-            if total >= 0:
-                self.energy_import += kwh
-            else:
-                self.energy_export += kwh
+            snap = self._snapshot()
+            for i in range(3):
+                kwh = snap["p"][i] * h / 3600 / 1000
+                kvarh = snap["q"][i] * h / 3600 / 1000
+                if kwh >= 0:
+                    self.imported[i] += kwh
+                    self.q_imported[i] += kvarh
+                else:
+                    self.exported[i] -= kwh
+                    self.q_exported[i] += kvarh
+            self.apparent_energy += sum(snap["s"]) * h / 3600 / 1000
+            self.charge += sum(snap["c"]) * h / 3600
+            now = {"power": max(sum(snap["p"]), 0.0),   # import power only
+                   "apparent_power": sum(snap["s"]),
+                   "neutral_current": self._neutral(snap["c"]),
+                   **{f"current_l{i + 1}": snap["c"][i] for i in range(3)}}
+            for key, value in now.items():
+                self.demand[key] += (value - self.demand[key]) * alpha
+                self.demand_max[key] = max(self.demand_max[key], self.demand[key])
 
     def read(self, name: str) -> Any:
         if name == "reset_energy":
             return False
         if name == "frequency":
             return self.frequency
-        if name in ("energy_import", "energy_export"):
+        if name in ("apparent_energy", "charge"):
             return getattr(self, name)
+        energies = {"energy_import": self.imported, "energy_export": self.exported,
+                    "reactive_energy_import": self.q_imported,
+                    "reactive_energy_export": self.q_exported}
+        if name in energies:
+            return sum(energies[name])
+        if name == "energy_total":
+            return sum(self.imported) + sum(self.exported)
+        if name == "reactive_energy_total":
+            return sum(self.q_imported) + sum(self.q_exported)
+        if name in _DEMAND_VARS:
+            return self.demand[_DEMAND_VARS[name]]
+        if name in _DEMAND_MAX_VARS:
+            return self.demand_max[_DEMAND_MAX_VARS[name]]
         if name.startswith("voltage_l") and len(name) == 11:   # line-to-line
             a, b = int(name[-2]) - 1, int(name[-1]) - 1
             va, vb = self._phase(a)[0], self._phase(b)[0]
             return math.sqrt(va * va + vb * vb + va * vb)  # 120 degrees apart
-        phases = [self._phase(i) for i in range(3)]
-        p = [v * c * pf for v, c, pf in phases]
-        s = [v * c for v, c, _ in phases]
-        sign = -1 if self.export else 1
+        if name == "voltage_ll_avg":
+            return sum(self.read(f"voltage_l{a}{b}") for a, b in ("12", "23", "31")) / 3
+        snap = self._snapshot()
         if name.endswith(("_l1", "_l2", "_l3")):
             i = int(name[-1]) - 1
             quantity = name[:-3]
-            if quantity == "voltage":
-                return phases[i][0]
-            if quantity == "current":
-                return phases[i][1]
-            if quantity == "power":
-                return sign * p[i]
-            return phases[i][2]
-        if name == "power_total":
-            return sign * sum(p)
-        if name == "apparent_power_total":
-            return sum(s)
-        if name == "reactive_power_total":
-            return sum(math.sqrt(max(si * si - pi * pi, 0.0)) for si, pi in zip(s, p))
-        if name == "power_factor_total":
-            return sum(p) / sum(s) if sum(s) else 0.0
+            per_phase = {
+                "voltage": lambda: snap["v"][i], "current": lambda: snap["c"][i],
+                "power": lambda: snap["p"][i], "apparent_power": lambda: snap["s"][i],
+                "reactive_power": lambda: snap["q"][i],
+                "power_factor": lambda: self.pf_sign * snap["pf"][i],
+                "phase_angle": lambda: math.degrees(math.acos(snap["pf"][i]))
+                if snap["s"][i] else 0.0,
+                "energy_import": lambda: self.imported[i],
+                "energy_export": lambda: self.exported[i],
+                "energy_total": lambda: self.imported[i] + self.exported[i],
+                "reactive_energy_import": lambda: self.q_imported[i],
+                "reactive_energy_export": lambda: self.q_exported[i],
+                "reactive_energy_total": lambda: self.q_imported[i] + self.q_exported[i],
+            }
+            return per_phase[quantity]()
+        total_p, total_s = sum(snap["p"]), sum(snap["s"])
+        totals = {
+            "voltage_avg": lambda: sum(snap["v"]) / 3,
+            "current_avg": lambda: sum(snap["c"]) / 3,
+            "current_sum": lambda: sum(snap["c"]),
+            "neutral_current": lambda: self._neutral(snap["c"]),
+            "power_total": lambda: total_p,
+            "apparent_power_total": lambda: total_s,
+            "reactive_power_total": lambda: sum(snap["q"]),
+            "power_factor_total": lambda: self.pf_sign * abs(total_p) / total_s
+            if total_s else 0.0,
+            "phase_angle_total": lambda: math.degrees(math.acos(min(abs(total_p) / total_s,
+                                                                    1.0))) if total_s else 0.0,
+        }
+        if name in totals:
+            return totals[name]()
         raise KeyError(name)
 
     def write(self, name: str, value: Any) -> None:
         if name == "reset_energy" and value:
-            self.energy_import = self.energy_export = 0.0
+            self._reset()
 
 
 # --- temperature controller ---------------------------------------------------------
 
 class TemperatureController(Model):
-    PARAMS = ("ambient", "max_temperature", "time_constant", "setpoint", "kp", "ti", "run")
+    PARAMS = ("ambient", "max_temperature", "time_constant", "setpoint", "kp", "ti", "run",
+              "comms_write")
     FAULTS = {"sensor_break": ()}
     VARIABLES = {
         "pv": False, "setpoint": True, "output": False, "manual_output": True,
         "run": True, "mode": True, "alarm_high_limit": True, "alarm_low_limit": True,
         "alarm_high": False, "alarm_low": False, "sensor_break": False, "status": False,
+        "command": True, "comms_write": False,
     }
+    # operation command: high byte = command code, low byte = related information
+    # (Omron E5@C layout); 00 = communications writing, 01 = run/stop, 09 = auto/manual
+    _COMMANDS = {0x00: (0, 1), 0x01: (0, 1), 0x02: tuple(range(8)), 0x03: (0, 1, 2),
+                 0x04: (0, 1), 0x05: (0,), 0x06: (0,), 0x07: (0,), 0x08: (0,), 0x09: (0, 1),
+                 0x0B: (0,), 0x0C: (0, 1, 2, 3, 4, 5, 0x0F), 0x0D: (0, 1), 0x0E: (0, 1),
+                 0x11: (0, 1)}
     _STEP = 0.5  # s of simulated time per integration step
 
     def __init__(self, params, clock, seed=None):
@@ -231,6 +339,8 @@ class TemperatureController(Model):
         self.ti = _param(params, "ti", 60.0, 0.1, 1e6)
         self.setpoint = _param(params, "setpoint", 60.0, -1000, 3000)
         self.running = bool(params.get("run", True))
+        # False: setting writes are refused until the operation command 0x0001 enables them
+        self.comms_write = bool(params.get("comms_write", True))
         self.pv = self.ambient
         self.output = 0.0
         self.manual_output = 0.0
@@ -281,12 +391,36 @@ class TemperatureController(Model):
             return self._broken()
         if name == "run":
             return self.running
+        if name == "command":
+            return 0
+        if name == "comms_write":
+            return self.comms_write
         if name == "status":
             return (self.running | (self.mode << 1) | (high << 2) | (low << 3)
                     | (self._broken() << 4))
         return getattr(self, name)
 
+    def _command(self, value: int) -> None:
+        code, info = value >> 8, value & 0xFF
+        if info not in self._COMMANDS.get(code, ()):
+            raise ModelError(f"unknown operation command {value:#06x}")
+        if code == 0x00:
+            self.comms_write = bool(info)
+            return
+        if not self.comms_write:
+            raise ModelError("communications writing is off (command 0x0001 turns it on)")
+        if code == 0x01:
+            self.running = info == 0          # 00 = run, 01 = stop
+        elif code == 0x09:
+            self.write("mode", info)          # 00 = auto, 01 = manual
+        # the other commands are accepted and have no effect in the simulation
+
     def write(self, name: str, value: Any) -> None:
+        if name == "command":
+            self._command(int(value))
+            return
+        if not self.comms_write:
+            raise ModelError("communications writing is off (command 0x0001 turns it on)")
         if name == "run":
             self.running = bool(value)
         elif name == "mode":
@@ -416,10 +550,144 @@ class Vfd(Model):
         pass  # a trip stays latched until the master resets it via the control word
 
 
+# --- PV inverter --------------------------------------------------------------------
+
+class PvInverter(Model):
+    """Three-phase grid-tied PV inverter following a day curve.
+
+    The simulated time of day starts at ``start_hour`` and runs with the device
+    clock (``time_scale: 3600`` makes a day pass in 24 s). Between ``sunrise`` and
+    ``sunset`` the DC power follows a half sine; at night the inverter sleeps.
+    States and event bits follow SunSpec model 103.
+    """
+
+    PARAMS = ("rated_power", "voltage", "frequency", "dc_voltage", "efficiency",
+              "power_factor", "sunrise", "sunset", "start_hour", "ambient", "variation")
+    FAULTS = {"grid_loss": (), "ground_fault": (), "over_temp": ()}
+    VARIABLES = {
+        **{f"{q}_l{i}": False for q in ("current", "voltage") for i in (1, 2, 3)},
+        "voltage_l12": False, "voltage_l23": False, "voltage_l31": False,
+        "current": False, "power": False, "frequency": False, "apparent_power": False,
+        "reactive_power": False, "power_factor": False, "energy": False,
+        "dc_current": False, "dc_voltage": False, "dc_power": False,
+        "cabinet_temperature": False, "heatsink_temperature": False,
+        "state": False, "events": False, "hour": False,
+    }
+    # SunSpec model 103 operating states and event bits
+    SLEEPING, MPPT, THROTTLED, FAULT = 2, 4, 5, 7
+    GROUND_FAULT, GRID_DISCONNECT, OVER_TEMP = 1 << 0, 1 << 4, 1 << 7
+
+    def __init__(self, params, clock, seed=None):
+        super().__init__(params, clock, seed)
+        self.rated_power = _param(params, "rated_power", 10000.0, 1, 1e7)
+        self.voltage = _param(params, "voltage", 230.0, 1, 1e5)
+        self.frequency = _param(params, "frequency", 50.0, 1, 1000)
+        self.dc_voltage = _param(params, "dc_voltage", 600.0, 1, 1e5)
+        self.efficiency = _param(params, "efficiency", 0.97, 0.01, 1.0)
+        self.pf = _param(params, "power_factor", 1.0, 0.0, 1.0)
+        self.sunrise = _param(params, "sunrise", 6.0, 0, 24)
+        self.sunset = _param(params, "sunset", 20.0, 0, 24)
+        if self.sunset <= self.sunrise:
+            raise ProfileError("model_params: sunset must be after sunrise")
+        self.start_hour = _param(params, "start_hour", 12.0, 0, 24)
+        self.ambient = _param(params, "ambient", 20.0, -50, 80)
+        self.variation = _param(params, "variation", 0.02, 0.0, 1.0)
+        self.elapsed = 0.0
+        self.energy = 0.0    # Wh
+        self._tick = None
+
+    def _draw(self) -> None:
+        # one noise sample per simulated second, so the values of one read agree
+        tick = math.floor(self.elapsed)
+        if tick == self._tick:
+            return
+        self._tick = tick
+        self.noise = 1 + self._rng.gauss(0, self.variation) if self.variation else 1.0
+        self.grid_noise = 1 + self._rng.gauss(0, 0.002)
+
+    def _hour(self) -> float:
+        return (self.start_hour + self.elapsed / 3600) % 24
+
+    def _sun(self) -> float:
+        """Available DC power as a fraction of the rated input (0 at night)."""
+        h = self._hour()
+        if not self.sunrise < h < self.sunset:
+            return 0.0
+        return math.sin(math.pi * (h - self.sunrise) / (self.sunset - self.sunrise))
+
+    def _state(self) -> int:
+        if "ground_fault" in self.active or "grid_loss" in self.active:
+            return self.FAULT
+        if self._sun() <= 0:
+            return self.SLEEPING
+        if "over_temp" in self.active:
+            return self.THROTTLED
+        return self.MPPT
+
+    def _ac_power(self, noise: float = 1.0) -> float:
+        state = self._state()
+        if state in (self.FAULT, self.SLEEPING):
+            return 0.0
+        power = min(self.rated_power * self._sun() * max(noise, 0.0), self.rated_power)
+        if state == self.THROTTLED:
+            power = min(power, self.rated_power / 2)
+        return power
+
+    def advance(self, dt: float) -> None:
+        steps = max(1, min(2000, math.ceil(dt / 10.0)))
+        h = dt / steps
+        for _ in range(steps):
+            self.elapsed += h
+            self.energy += self._ac_power() * h / 3600
+
+    def read(self, name: str) -> Any:
+        if name == "energy":
+            return self.energy
+        if name == "hour":
+            return self._hour()
+        if name == "state":
+            return self._state()
+        if name == "events":
+            return ((self.GROUND_FAULT if "ground_fault" in self.active else 0)
+                    | (self.GRID_DISCONNECT if "grid_loss" in self.active else 0)
+                    | (self.OVER_TEMP if "over_temp" in self.active else 0))
+        self._draw()
+        grid = "grid_loss" not in self.active
+        power = self._ac_power(self.noise)
+        load = power / self.rated_power
+        if name == "frequency":
+            return self.frequency if grid else 0.0
+        if name.startswith("voltage_l"):
+            v = self.voltage * self.grid_noise if grid else 0.0
+            return v * math.sqrt(3) if len(name) == 11 else v
+        apparent = power / self.pf if self.pf else 0.0
+        current = apparent / (3 * self.voltage)
+        if name.startswith("current_l"):
+            return current
+        sun = self._sun()
+        dc_power = power / self.efficiency
+        dc_voltage = self.dc_voltage * (0.9 + 0.1 * sun) if sun > 0 else 0.0
+        values = {
+            "current": 3 * current,
+            "power": power,
+            "apparent_power": apparent,
+            "reactive_power": math.sqrt(max(apparent ** 2 - power ** 2, 0.0)),
+            "power_factor": 100.0 * self.pf if power else 100.0,   # SunSpec: percent
+            "dc_power": dc_power,
+            "dc_voltage": dc_voltage,
+            "dc_current": dc_power / dc_voltage if dc_voltage else 0.0,
+            "cabinet_temperature": self.ambient + 15 * load,
+            "heatsink_temperature": self.ambient + 35 * load
+            + (40 if "over_temp" in self.active else 0),
+        }
+        return values[name]
+
+
 MODELS: dict[str, type[Model]] = {
     "energy_meter": EnergyMeter,
     "temperature_controller": TemperatureController,
     "vfd": Vfd,
+    "pv_inverter": PvInverter,
 }
 
 
