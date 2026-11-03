@@ -1,5 +1,7 @@
 """Tests for the Python layer of the browser demo (web/py/demo.py), run on CPython."""
 
+import re
+import struct
 import sys
 from pathlib import Path
 
@@ -59,7 +61,11 @@ def test_word_order_pitfall(demo):
     good = texts(demo.run("meter", "read input 0 -t float32"), "value")[0]
     bad = texts(demo.run("meter", "read input 0 -t float32 -o CDAB"), "value")[0]
     assert float(good.split()[2]) == pytest.approx(230, rel=0.02)
-    assert float(bad.split()[2]) != pytest.approx(230, rel=0.5)
+    # The swapped value hangs on the meter's noise and can land anywhere, even near
+    # 230, so check the decoding of the words on the wire and not its size.
+    shown, high, low = re.fullmatch(r"input 0: (\S+)  \[(\w{4}) (\w{4})\]", bad).groups()
+    assert struct.unpack(">f", bytes.fromhex(high + low))[0] == pytest.approx(230, rel=0.02)
+    assert shown == f"{struct.unpack('>f', bytes.fromhex(low + high))[0]:g}"
 
 
 def test_controller_write_protection(demo):
