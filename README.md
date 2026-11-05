@@ -287,6 +287,55 @@ only, no authentication). It takes one JSON object per line:
 set `null`); the CLI has the same as `modbus-sim set`, `get` and `list`.
 `--no-control` turns the channel off.
 
+## Docker
+
+For clients that are not written in Python: the image runs the three profiles
+after real devices behind one Modbus TCP port (`eastron-sdm630` as `meter` on
+unit 1, `omron-e5cc` as `controller` on unit 2, `sunspec-inverter` as `inverter`
+on unit 3).
+
+```bash
+docker run --rm --name sim -p 5020:5020 -p 127.0.0.1:5021:5021 ghcr.io/steitec/modbus-sim
+```
+
+The control channel has no authentication, hence `127.0.0.1:` in front of it.
+It listens on all interfaces inside the container, so anything on the same
+Docker network can reach it; use `serve ... --no-control` where that matters.
+Inject a fault without installing anything, or send the
+[JSON lines](#control-channel) to port 5021 from your own test code:
+
+```bash
+docker exec sim modbus-sim inject inverter grid_loss
+docker exec sim modbus-sim clear inverter
+```
+
+Your client insists on port 502, or you have your own bench file:
+
+```bash
+docker run --rm -p 502:5020 ghcr.io/steitec/modbus-sim
+docker run --rm -p 5020:5020 -v "$PWD/bench.yaml":/bench/bench.yaml ghcr.io/steitec/modbus-sim
+```
+
+Other arguments replace the default command. Keep `--host 0.0.0.0`, or the port
+is only reachable from inside the container:
+
+```bash
+docker run --rm -p 5020:5020 ghcr.io/steitec/modbus-sim serve vfd --host 0.0.0.0 --rtu-over-tcp
+```
+
+As a service container in GitHub Actions:
+
+```yaml
+services:
+  modbus:
+    image: ghcr.io/steitec/modbus-sim
+    ports:
+      - 5020:5020
+      - 127.0.0.1:5021:5021
+```
+
+The image has no RTU on a serial port; use Modbus TCP or RTU over TCP.
+
 ## Python client
 
 A minimal master is included, mainly for trying things out and for tests:
