@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- Docker image on `ghcr.io/steitec/modbus-sim`: runs the profiles after real
+  devices on Modbus TCP, with the control channel for fault injection
+
 ## 0.2.0 - 2026-11-01
 
 - Profiles after the published register maps of real devices:

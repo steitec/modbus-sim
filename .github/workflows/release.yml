@@ -1,6 +1,6 @@
 name: Release
 
-# Publishes to PyPI when a version tag (v1.2.3) is pushed: runs the tests,
+# Publishes to PyPI and ghcr.io when a version tag (v1.2.3) is pushed: runs the tests,
 # checks that the tag matches the package version, builds, then publishes.
 # Needs a Trusted Publisher on PyPI for this repository and workflow
 # (environment "pypi"); no API token is stored in the repository.
@@ -52,6 +52,34 @@ jobs:
         with:
           name: dist
           path: dist/
+
+  docker:
+    needs: [test, build, publish]  # only an image for a version that is on PyPI
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - id: version
+        name: Version from the tag; "latest" only for final releases (no rc/a/b/dev)
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          if [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then prerelease=false; else prerelease=true; fi
+          echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/steitec/modbus-sim:${{ steps.version.outputs.version }}
+            ${{ steps.version.outputs.prerelease == 'false' && 'ghcr.io/steitec/modbus-sim:latest' || '' }}
 
   publish:
     needs: build

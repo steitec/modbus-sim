@@ -25,6 +25,34 @@ jobs:
       - run: pytest -v examples/test_example.py
       - run: pytest -v web/tests
 
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: pip install .
+      - name: Build and start the image
+        run: |
+          docker build -t modbus-sim .
+          docker run -d --name sim -p 5020:5020 -p 127.0.0.1:5021:5021 modbus-sim
+          for _ in $(seq 20); do modbus-sim list && break; sleep 0.5; done
+      - name: Modbus TCP and the control channel answer from outside the container
+        run: |
+          modbus-sim read input 0 -t float32 -u 1
+          modbus-sim inject inverter grid_loss
+          modbus-sim list | grep grid_loss
+          docker exec sim modbus-sim clear inverter
+          ! modbus-sim list | grep grid_loss
+      - name: Runs unprivileged and stops on SIGTERM
+        run: |
+          test "$(docker exec sim id -u)" = 10001
+          docker stop -t 5 sim
+          test "$(docker inspect -f '{{.State.ExitCode}}' sim)" = 0
+      - if: failure()
+        run: docker logs sim
+
   web:
     runs-on: ubuntu-latest
     defaults:
