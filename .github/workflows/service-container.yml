@@ -50,7 +50,12 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-      - run: pip install "${{ needs.version.outputs.pip }}"
+      - name: Install the released package (PyPI's index can lag a few minutes behind a release)
+        run: |
+          for _ in $(seq 10); do
+            pip install --no-cache-dir "${{ needs.version.outputs.pip }}" && exit 0; sleep 30
+          done
+          exit 1
       - name: Ready without waiting
         run: modbus-sim read input 0 -t float32 -u 1
       - name: Faults over the control channel on the host's loopback
@@ -68,7 +73,12 @@ jobs:
       modbus:
         image: ghcr.io/steitec/modbus-sim:${{ needs.version.outputs.tag }}
     steps:
-      - run: pip install "${{ needs.version.outputs.pip }}"
+      - name: Install the released package (PyPI's index can lag a few minutes behind a release)
+        run: |
+          for _ in $(seq 10); do
+            pip install --no-cache-dir "${{ needs.version.outputs.pip }}" && exit 0; sleep 30
+          done
+          exit 1
       - name: Ready without waiting, under the service name
         run: modbus-sim read input 0 -t float32 -u 1 --host modbus
       - name: Faults over the control channel of the service
