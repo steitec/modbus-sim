@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## 0.2.2 - 2026-11-06
+
+- The Docker image has a health check: healthy once the Modbus TCP port accepts
+  connections. A service container in GitHub Actions now waits for it before the
+  first step
+- Workflow `service-container.yml` runs the published image as a service container
+  after every release, for a job on the runner and for a job in a container
+
 ## 0.2.1 - 2026-11-05
 
 - Docker image on `ghcr.io/steitec/modbus-sim`: runs the profiles after real

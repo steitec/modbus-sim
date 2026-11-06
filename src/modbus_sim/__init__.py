@@ -1,6 +1,6 @@
 """Simulated Modbus devices (energy meter, temperature controller, frequency converter)
 with behaviour and fault injection, over Modbus TCP, RTU over TCP and serial RTU."""
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 from .bench import Bench, BenchError
 from .client import ModbusClient, ModbusError

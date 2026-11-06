@@ -323,7 +323,9 @@ is only reachable from inside the container:
 docker run --rm -p 5020:5020 ghcr.io/steitec/modbus-sim serve vfd --host 0.0.0.0 --rtu-over-tcp
 ```
 
-As a service container in GitHub Actions:
+The image reports itself healthy once port 5020 accepts connections (with another
+`--port` it stays unhealthy). As a service container in GitHub Actions, the job
+therefore starts with the devices ready:
 
 ```yaml
 services:

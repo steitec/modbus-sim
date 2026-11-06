@@ -25,5 +25,9 @@ USER modbus
 WORKDIR /bench
 
 EXPOSE 5020 5021
+# Healthy once the Modbus TCP port accepts connections (the control channel may be off
+# with --no-control). A service container in GitHub Actions waits for this.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --start-interval=1s --retries=3 \
+    CMD ["python", "-c", "import socket; socket.create_connection(('127.0.0.1', 5020), 2).close()"]
 ENTRYPOINT ["modbus-sim"]
 CMD ["serve", "--bench", "/bench/bench.yaml", "--host", "0.0.0.0", "--control-host", "0.0.0.0"]

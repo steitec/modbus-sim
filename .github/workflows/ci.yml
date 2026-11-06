@@ -37,7 +37,12 @@ jobs:
         run: |
           docker build -t modbus-sim .
           docker run -d --name sim -p 5020:5020 -p 127.0.0.1:5021:5021 modbus-sim
-          for _ in $(seq 20); do modbus-sim list && break; sleep 0.5; done
+      - name: Reports healthy once it answers
+        run: |
+          for _ in $(seq 60); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' sim)" = healthy ] && break; sleep 1
+          done
+          test "$(docker inspect -f '{{.State.Health.Status}}' sim)" = healthy
       - name: Modbus TCP and the control channel answer from outside the container
         run: |
           modbus-sim read input 0 -t float32 -u 1

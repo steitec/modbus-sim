@@ -1,0 +1,78 @@
+name: Service container
+
+# Runs the published image the way the wiki (Testing-in-CI) shows it: as a service
+# container in GitHub Actions, once for a job on the runner and once for a job in a
+# container. Starts after every successful release, or by hand for any version.
+# It tests what is on ghcr.io, not the code of a pull request; ci.yml does that.
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Image tag, e.g. 0.2.2 or latest"
+        default: latest
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      pip: ${{ steps.version.outputs.pip }}
+    steps:
+      - id: version
+        env:
+          INPUT: ${{ inputs.version }}
+          RELEASED: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = workflow_run ]; then tag="${RELEASED#v}"; else tag="${INPUT}"; fi
+          [[ "${tag}" =~ ^(latest|[0-9]+\.[0-9]+\.[0-9]+.*)$ ]] || { echo "bad version ${tag}"; exit 1; }
+          if [ "${tag}" = latest ]; then pip=modbus-sim; else pip="modbus-sim==${tag}"; fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "pip=${pip}" >> "$GITHUB_OUTPUT"
+
+  on-runner:
+    needs: version
+    runs-on: ubuntu-latest
+    services:
+      modbus:
+        image: ghcr.io/steitec/modbus-sim:${{ needs.version.outputs.tag }}
+        ports:
+          - 5020:5020
+          - 127.0.0.1:5021:5021
+    steps:
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: pip install "${{ needs.version.outputs.pip }}"
+      - name: Ready without waiting
+        run: modbus-sim read input 0 -t float32 -u 1
+      - name: Faults over the control channel on the host's loopback
+        run: |
+          modbus-sim inject inverter grid_loss
+          modbus-sim list | grep grid_loss
+          modbus-sim clear inverter
+          ! modbus-sim list | grep grid_loss
+
+  in-container:
+    needs: version
+    runs-on: ubuntu-latest
+    container: python:3.13-slim
+    services:
+      modbus:
+        image: ghcr.io/steitec/modbus-sim:${{ needs.version.outputs.tag }}
+    steps:
+      - run: pip install "${{ needs.version.outputs.pip }}"
+      - name: Ready without waiting, under the service name
+        run: modbus-sim read input 0 -t float32 -u 1 --host modbus
+      - name: Faults over the control channel of the service
+        run: |
+          modbus-sim inject inverter grid_loss --control-host modbus
+          modbus-sim list --control-host modbus | grep grid_loss
+          modbus-sim clear inverter --control-host modbus
