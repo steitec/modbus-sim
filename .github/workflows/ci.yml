@@ -60,6 +60,7 @@ jobs:
 
   web:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: web
@@ -71,7 +72,11 @@ jobs:
           docker build -f web/Dockerfile -t modbus-sim-web .
           docker run -d --name web -p 8080:80 modbus-sim-web
       - run: npm ci
-      - run: npx playwright install --with-deps chromium firefox
+      # The runner's apt mirror is sometimes very slow (22 min instead of
+      # about 1 min on 2026-11-06); fail early and re-run instead of waiting.
+      - name: Install Playwright browsers
+        timeout-minutes: 8
+        run: npx playwright install --with-deps chromium firefox
       - run: npx playwright test
         env:
           CI: "1"
